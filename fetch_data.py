@@ -27,7 +27,7 @@ def fetch_card_images(cards_df:pd.DataFrame=None, set_id:str=None, num_workers=5
     if cards_df is None:
         cards_df = scryfall.get_cards_from_set(set_id)
 
-    q = TaskQueue(num_workers)
+    q = TaskQueue(num_workers, run=True)
     for (_id,card) in cards_df.iterrows():
         q.add_task(get_card_img, card, to_file=True)
     q.join()
