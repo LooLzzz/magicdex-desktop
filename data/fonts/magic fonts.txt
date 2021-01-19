@@ -1,0 +1,3 @@
+Classic MTG cards uses Goudy Medieval - 1993
+Modern MTG cards uses Matrix Bold - 1997
+Post-Modern MTG cards uses Beleren - 2003

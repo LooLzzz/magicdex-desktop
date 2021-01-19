@@ -2,40 +2,81 @@ import requests, cv2, os
 import pandas as pd
 import numpy as np
 from scryfall_client import scryfall
-from task_queue import TaskQueue
+from task_executor import TaskExecutor
 from config import Config
 # from IPython.display import display
 
-def get_card_img(card, to_file=False):
-    img_url = card.image_uris['normal']
+def fetch_card_img(card, to_file=False):
+    '''
+    `card` should have the following properties: {`set`, `name`, (`image_uris` or `img_url`)}
+    '''
+    if 'image_uris' in card:
+        # img_url = card['image_uris']['large']
+        img_url = card['image_uris']['normal']
+    else:
+        img_url = card['img_url']
     setid = card['set']
-    card_name = card['name'].lower().replace(' ', '-')
-    print(f'fetching {setid}_{card_name}...')
+    card_name = card['name'] \
+                    .lower() \
+                    .replace(' ', '_') \
+                    .replace(',', '') \
+                    .replace('\'', '')
+    filename = f'{setid}-{card_name}'
+    subdir = f"{Config.cards_path}/images"
+    path = f'{subdir}/{filename}.jpg'
 
+    
+    # get img from local dir
+    if os.path.exists(path):
+        print(f"image exists, loading '{filename}'..") #DEBUG
+        return cv2.imread(path)
+    # else:
+    # get img from url
+    print(f"image doesnt exist, fetching '{filename}'..") #DEBUG
     res = requests.get(img_url, stream=True).raw
     img = np.asarray(bytearray(res.read()), dtype="uint8")
     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
 
+    # save it
     if to_file:
-        dir = f'{Config.card_images_path}'
-        os.makedirs(dir, exist_ok=True)
-        cv2.imwrite(f'{dir}/{setid}_{card_name}.png', img)
-    print(f'{setid}_{card_name} done.')
+        os.makedirs(subdir, exist_ok=True)
+        cv2.imwrite(path, img)
+    print(f"'{filename}' done.")
     return img
 
-def fetch_card_images(cards_df:pd.DataFrame=None, set_id:str=None, num_workers=5): # to_csv=False, csv_name=None):
-    if cards_df is None:
-        cards_df = scryfall.get_cards_from_set(set_id)
+def fetch_card_images(cards_df:pd.DataFrame, limit_n=None, limit_frac=None, max_workers=5, delay=0.1):#, i=None):
+    if limit_n != None:
+        cards_df = cards_df.sample(n=limit_n)
+    elif limit_frac != None:
+        cards_df = cards_df.sample(frac=limit_frac)
 
-    q = TaskQueue(num_workers, run=True)
-    for (_id,card) in cards_df.iterrows():
-        q.add_task(get_card_img, card, to_file=True)
-    q.join()
+    # setup queue for fetching requested card images
+    # added delay to workers as requested by scryfall,
+    # https://scryfall.com/docs/api#rate-limits-and-good-citizenship
+    task_master = TaskExecutor(max_workers=max_workers, delay=delay)
+    for (_i,card) in cards_df.iterrows():
+        task_master.submit(task=fetch_card_img, card=card, to_file=True)
+    
+    # get results from futures
+    res = []
+    for future in task_master.futures:
+        res += [future.result()]
+    return res
+    
 
 
 #######################################################################################
 
 
 '''
-https://api.scryfall.com/cards/search?order=released&q=oracleid%3Aaa7714b0-2bfb-458a-8ebf-37ec2c53383e&unique=prints
+get all prints of a specific card
+https://api.scryfall.com/cards/search?q=oracleid:aa7714b0-2bfb-458a-8ebf-37ec2c53383e&unique=prints
+https://api.scryfall.com/cards/search?q="sol ring"&unique=prints
+## for a fuzzy search drop the "" in the 'q=' 
+
+get all cards from a set
+https://api.scryfall.com/cards/search?q=set:m10+lang:en
+
+for layout&frame specific tasks refer to
+https://scryfall.com/docs/api/layouts
 '''

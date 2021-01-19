@@ -1,19 +1,24 @@
-import re, os, requests, json, ast
+import re, requests, os #, json, ast
 import pandas as pd
+# import numpy as np
 from config import Config
 # from IPython.display import display
 
 class scryfall:
-    _base_url = 'https://api.scryfall.com/'
+    '''
+    A wrapper for scryfall's api\n
+    https://api.scryfall.com
+    '''
+    _base_url = 'https://api.scryfall.com'
 
     @staticmethod
-    def use_api(path:str, **params):
+    def use_api(path:str, i=None, **kwargs):
         '''
         Freely use scryfall's api at https://api.scryfall.com
         
         ## Input
         `path` - request path/type \n
-        `**params` - enter any valid scryfall fields, for 'not' operator use '_' \n
+        `**kwargs` - enter any valid scryfall fields, for a 'not' operator use '_' \n
         ---
         ## Return
         pd.DataFrame` or `pd.Series` \n
@@ -24,22 +29,54 @@ class scryfall:
         scryfall.use_api('/cards/named', fuzzy='sol r')
         ```
         '''
-        url = scryfall._base_url + path.strip('/') + '?'
+        def query_dict_to_string(q):
+            '''
+            `q` = `dict({'a':'val1', 'b':'val2'})` \n
+            returns `str('a:val1+b:val2')`
+            '''
+            res = str(q) \
+                .strip('}{\'') \
+                .replace('\'','') \
+                .replace(' ','') \
+                .replace(',','+') 
+            return res
 
-        for (k,v) in params.items():
-            k = re.sub(r'^_', '-', k) # replace '_' with '-' for the not operator
-            url += f'{k}={v}&'
-        url = url.strip('&')
+        def gen_full_url():
+            url = f"{scryfall._base_url}/{path.strip('/')}/?" # url=`https://api.scryfall.com/path/?`
 
-        has_more = True
-        res = []
+            for (key, val) in kwargs.items():
+                # turn dict to something scryfall can understand
+                if isinstance(val, dict):
+                    val = query_dict_to_string(val)
+                
+                # replace '_' with '-' for the not operator
+                key = re.sub(r'^_', '-', key)
+                
+                # append to url
+                url += f'{key}={val}&'
+            url = url.rstrip('&')
+
+            return url
         
-        # get cards dataset as a json from the query
+        #########
+
+        url = gen_full_url()
+        has_more = True
+        res = None
+        
+        # get cards dataset as json from query
         while has_more:
-            r = requests.get(url)
-            res_json = json.loads(r.text)
+            response = requests.get(url)
+            response.raise_for_status() # will raise for anything other than 1xx or 2xx
+            
+            # res_json = json.loads(response.text)
+            res_json = response.json()
             if res_json['object'] == 'list':
-                res += res_json['data']
+                res_df = pd.DataFrame(res_json['data'])#.set_index('id')
+                res = pd.concat([res, res_df])
+                if i is not None: #DEBUG
+                    print(f'task {i}: {100*len(res)/res_json["total_cards"]:.2f}% : {len(res)}/{res_json["total_cards"]}')
+                # res += res_json['data']
                 has_more = res_json['has_more']
             else:
                 res = res_json
@@ -50,39 +87,101 @@ class scryfall:
 
         # Convert res into a dataframe/series
         try:
-            res = pd.DataFrame(res).set_index('id').sort_index()
-            # return a series if only one row in available
-            if len(res) == 1:
-                res = res.iloc[0]
+            res = res.sort_index(axis=1)
+            # if 'set' in res:
+            #     res = res.sort_index(axis=1).sort_values(by=['set','name'])
+            # else:
+            #     res = res.sort_index(axis=1).sort_values(by=['name'])
+            # # return a series if only one row is available
+            # if len(res) == 1:
+            #     res = res.iloc[0]
         except ValueError:
             res = pd.Series(res).sort_index()
         return res
 
     @staticmethod
-    def load_csv_to_pd(path):
-        df = pd.read_csv(path, delimiter='|')
-        for col in df:
-            # is `col` supposed to be a dict
-            s = df.iloc[0][col]
-            if isinstance(s, str):
-                if re.match(r"^{(.+:.+)+}$", s) is not None: 
-                    df[col] = df[col].apply(ast.literal_eval) #to dict
-                    s = df.iloc[0][col]
+    def search(**kwargs):
+        '''
+        send a GET request to https://api.scryfall.com/cards/search with kwargs as query\n
+        return value is the response in dataframe/series form
+        '''
+        return scryfall.use_api('/cards/search', **kwargs)
+
+    @staticmethod
+    def get_bulk_data(bulk_type='default_cards', to_file=False, subdir=None, filename='Cards', *args, **kwargs):
+        '''
+        `cards_type` should be one of [`oracle_cards`, `unique_artwork`, `default_cards`, `all_cards`, `rulings`, 'all_sets']\n
+          * if `cards_type` is `None` or `''` then it fallsback to `default_cards`\n
+          * setting `bulk_type='all_sets'` will result in calling `get_all_sets()` method
+
+        return value is the response in dataframe/series form
+        '''
+        if bulk_type==None or bulk_type=='':
+            bulk_type = 'default_cards'
+        elif bulk_type == 'all_sets':
+            return scryfall.get_all_sets(to_file, subdir, filename, *args, **kwargs)
+
+        print('fetching download url..') #DEBUG
+        res = requests.get(f'{scryfall._base_url}/bulk-data')
+        res.raise_for_status()
+        res_df = pd.DataFrame(res.json()['data'])
+
+        download_uri = res_df[ res_df['type']==bulk_type ]['download_uri'].values[0]
+        print('downloading bulk..') #DEBUG
+        res = requests.get(download_uri)
+        res_df = pd.DataFrame(res.json()).sort_index(axis=1)#.set_index('id')
+
+        if to_file:
+            scryfall.to_json(res_df, subdir, filename=filename, *args, **kwargs)
+        return res_df
+
+    @staticmethod
+    def get_all_sets(to_file=False, subdir=None, filename='sets', *args, **kwargs):
+        '''
+        get info about all sets in magic.
+        return value is the response in dataframe/series form
+        '''
+        sets_df = scryfall.use_api('/sets')
+        if to_file:
+            scryfall.to_json(sets_df, subdir, filename=filename, *args, **kwargs)
+        return sets_df
+
+    #################
+
+    @staticmethod
+    def read_json(path, orient='records', lines=True, no_digital=True, *args, **kwargs):
+        '''
+        Used to load a df full of cards or set info. \n
+        If '`path`.json' contains cards, then drop all cards without an image and cards that are purely digital.
+        '''
+        print(f"loading '{path}'..") #DEBUG
+        df = pd.read_json(path, orient=orient, lines=lines, *args, **kwargs)
+        
+        if 'set' in df:
+            # remove all cards without `img_uris`
+            df[ df['image_uris'].apply(lambda item: item is not None ) ]
+            
+            # remove all digital only sets
+            if no_digital:
+                df = df[ df['set'].apply(lambda item: item not in Config.digital_sets) ]
+
         return df
 
     @staticmethod
-    def search(**params):
-        return scryfall.use_api('/cards/search', **params)
-
-    @staticmethod
-    def get_cards_from_set(set_id:str, **params):
-        dir = f'{Config.data_path}/sets'
-        if os.path.exists(f'{dir}/{set_id}.csv'):
-            return scryfall.load_csv_to_pd(f'{dir}/{set_id}.csv')
-            # return pd.read_csv(f'{dir}/{set_id}.csv', delimiter='|')
-
-        params['q'] = f'set:{set_id}'
-        df = scryfall.search(**params)
-        os.makedirs(dir, exist_ok=True)
-        df.to_csv(f'{dir}/{set_id}.csv', sep='|')
-        return df
+    def to_json(df:pd.DataFrame, subdir, filename='cards', orient='records', lines=True, indent=0, *args, **kwargs):
+        '''
+        save df as json format.
+        a quality of life function.
+        '''
+        if subdir == None or subdir == '':
+            subdir = Config.cards_path
+        else:
+            subdir = f'{Config.data_path}/{subdir.strip("/")}'
+        
+        if filename==None or filename=='':
+            filename = 'cards'
+        else:
+            filename = re.sub(r'(\.json)$', '', filename)
+        print(f"saving data to '{subdir}/{filename}.json'..") #DEBUG
+        os.makedirs(subdir, exist_ok=True)
+        return df.to_json(f'{subdir}/{filename}.json', orient=orient, lines=lines, indent=indent, *args, **kwargs)
