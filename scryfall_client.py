@@ -1,5 +1,6 @@
-import re, requests, os #, json, ast
+import re, requests, os, json #, math, wget, ast
 import pandas as pd
+from tqdm import tqdm
 # import numpy as np
 from config import Config
 # from IPython.display import display
@@ -127,9 +128,17 @@ class scryfall:
         res_df = pd.DataFrame(res.json()['data'])
 
         download_uri = res_df[ res_df['type']==bulk_type ]['download_uri'].values[0]
-        print('downloading bulk..') #DEBUG
-        res = requests.get(download_uri)
-        res_df = pd.DataFrame(res.json()).sort_index(axis=1)#.set_index('id')
+        download_size = res_df[ res_df['type']==bulk_type ]['compressed_size'].values[0]
+
+        # print('downloading bulk..') #DEBUG
+        # download with tqdm progress bar
+        res = requests.get(download_uri, stream=True)        
+        frame = bytearray()
+        with tqdm(unit='B', unit_divisor=1024, unit_scale=True, total=download_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as t:
+            for chunk in res.iter_content(1024):
+                frame.extend(chunk)
+                t.update(1024)
+        res_df = pd.DataFrame(json.loads(frame)).sort_index(axis=1)#.set_index('id')
 
         if to_file:
             scryfall.to_json(res_df, subdir, filename=filename, *args, **kwargs)
@@ -149,7 +158,7 @@ class scryfall:
     #################
 
     @staticmethod
-    def read_json(path, orient='records', lines=True, no_digital=True, *args, **kwargs):
+    def read_json(path, orient='records', lines=True, no_digital=True, en_only=True, *args, **kwargs):
         '''
         Used to load a df full of cards or set info. \n
         If '`path`.json' contains cards, then drop all cards without an image and cards that are purely digital.
@@ -157,10 +166,15 @@ class scryfall:
         print(f"loading '{path}'..") #DEBUG
         df = pd.read_json(path, orient=orient, lines=lines, *args, **kwargs)
         
+        # if this is true, then we are loading card_df
         if 'set' in df:
             # remove all cards without `img_uris`
             df[ df['image_uris'].apply(lambda item: item is not None ) ]
             
+            # keep only english cards
+            if en_only:
+                df = df[ df['lang'] == 'en' ]
+
             # remove all digital only sets
             if no_digital:
                 df = df[ df['set'].apply(lambda item: item not in Config.digital_sets) ]

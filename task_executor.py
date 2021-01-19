@@ -18,4 +18,6 @@ class TaskExecutor(ThreadPoolExecutor):
 
     def submit(self, task, delay=None, *args, **kwargs):
         delayed_task = self.delayed(task, delay)
-        self.futures += [super().submit(fn=delayed_task, *args, **kwargs)]
+        res = super().submit(fn=delayed_task, *args, **kwargs)
+        self.futures += [res]
+        return res

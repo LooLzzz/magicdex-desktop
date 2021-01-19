@@ -43,15 +43,6 @@ from config import Config
 #     },
 # ]
 
-# taskMaster = TaskQueue(num_workers=1)
-# taskMaster = TaskQueue(num_workers=3)
-# taskMaster = TaskQueue(num_workers=len(tasks))
-
-# for (i,task) in enumerate(tasks):
-#     taskMaster.add_task(fetch.fetch_card_images, i=i, **task)
-
-# taskMaster.join()
-
 def load_all_cards():
     cards_df = None
     
@@ -76,8 +67,8 @@ if __name__ == "__main__":
     cards_df = load_all_cards()
     sets_df = load_all_sets()
 
-    # donwload random images from df
-    fetch.fetch_card_images(cards_df, limit_n=8, max_workers=5, delay=0.2)
+    # download n random images from df
+    fetch.fetch_card_images(cards_df, limit_n=50, max_workers=5, delay=0.2)
 
     # loaded_cards[ loaded_cards['image_uris'].apply(lambda item: item == None ) ]
 

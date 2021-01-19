@@ -54,13 +54,22 @@ def fetch_card_images(cards_df:pd.DataFrame, limit_n=None, limit_frac=None, max_
     # added delay to workers as requested by scryfall,
     # https://scryfall.com/docs/api#rate-limits-and-good-citizenship
     task_master = TaskExecutor(max_workers=max_workers, delay=delay)
+    futures = []
     for (_i,card) in cards_df.iterrows():
-        task_master.submit(task=fetch_card_img, card=card, to_file=True)
+        future = task_master.submit(task=fetch_card_img, card=card, to_file=True)
+        futures += [(card['name'], future)]
     
     # get results from futures
     res = []
-    for future in task_master.futures:
-        res += [future.result()]
+    for (card_name,future) in futures:
+        try:
+            res += [future.result()]
+        except TypeError as err:
+            if 'NoneType' in str(err):
+                print(f'#### TypeError(NoneType) while retrieving results from {card_name} ####')
+                # print(err)
+            else:
+                raise err
     return res
     
 
