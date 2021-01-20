@@ -6,6 +6,20 @@ from task_executor import TaskExecutor
 from config import Config
 # from IPython.display import display
 
+def load_all(df_type):
+    '''
+    `df_kind` should be one of {'cards', 'sets'}
+    '''
+    df = None
+    path = f'{Config.cards_path}/all_{df_type}.json'
+    if os.path.exists(path):
+        df = scryfall.read_json(path)
+    else:
+        # bulk_type = df_kind=='cards' ? 'default_cards' : 'all_sets'
+        bulk_type = 'default_cards' if df_type=='cards' else 'all_sets'
+        df = scryfall.get_bulk_data(bulk_type, to_file=True, filename=f'all_{df_type}')
+    return df
+
 def fetch_card_img(card, to_file=False):
     '''
     `card` should have the following properties: {`set`, `name`, (`image_uris` or `img_url`)}
@@ -19,6 +33,7 @@ def fetch_card_img(card, to_file=False):
     card_name = card['name'] \
                     .lower() \
                     .replace(' ', '_') \
+                    .replace('-', '_') \
                     .replace(',', '') \
                     .replace('\'', '')
     filename = f'{setid}-{card_name}'

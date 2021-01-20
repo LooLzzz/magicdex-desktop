@@ -1,4 +1,6 @@
-import re, requests, os, json #, math, wget, ast
+from functools import reduce
+import re, requests, os, json
+from numpy.lib.function_base import append #, math, wget, ast
 import pandas as pd
 from tqdm import tqdm
 # import numpy as np
@@ -32,14 +34,34 @@ class scryfall:
         '''
         def query_dict_to_string(q):
             '''
-            `q` = `dict({'a':'val1', 'b':'val2'})` \n
-            returns `str('a:val1+b:val2')`
+            `q` = `dict({'a':['val1','val2'],'b':'val3'})` \n
+            returns `str('a:val1,val2+b:val3')`
             '''
-            res = str(q) \
+
+            # q = {'a':['val1','val2'],'b':'val3'}
+            splits = str(q) \
                 .strip('}{\'') \
                 .replace('\'','') \
                 .replace(' ','') \
-                .replace(',','+') 
+                .split(',')
+            
+            count = len(splits)-1
+            i = 0
+            while i < count:
+                if '[' in splits[i]:
+                    if ']' in splits[i]:
+                        splits[i] = splits[i] \
+                            .replace('[', '') \
+                            .replace(']', '')
+                        i += 1
+                    else:
+                        # splits[i] = f'{splits[i]},{splits.pop(i+1)}'
+                        splits[i] = splits[i] + ',' + splits.pop(i+1)
+                        count = len(splits)-1
+                else:
+                    i += 1
+            
+            res = reduce(lambda a,b: f'{a}+{b}', splits)
             return res
 
         def gen_full_url():
@@ -64,27 +86,31 @@ class scryfall:
         url = gen_full_url()
         has_more = True
         res = None
-        
-        # get cards dataset as json from query
-        while has_more:
-            response = requests.get(url)
-            response.raise_for_status() # will raise for anything other than 1xx or 2xx
-            
-            # res_json = json.loads(response.text)
-            res_json = response.json()
-            if res_json['object'] == 'list':
-                res_df = pd.DataFrame(res_json['data'])#.set_index('id')
-                res = pd.concat([res, res_df])
-                if i is not None: #DEBUG
-                    print(f'task {i}: {100*len(res)/res_json["total_cards"]:.2f}% : {len(res)}/{res_json["total_cards"]}')
-                # res += res_json['data']
-                has_more = res_json['has_more']
-            else:
-                res = res_json
-                has_more = False
 
-            if has_more:
-                url = res_json['next_page']
+        # get cards dataset as json from query
+        with tqdm(total=None, unit='cards', unit_scale=True, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+            while has_more:
+                response = requests.get(url)
+                response.raise_for_status() # will raise for anything other than 1xx or 2xx
+                res_json = response.json()
+                progress_bar.total = res_json['total_cards']
+                progress_bar.refresh()
+
+                if res_json['object'] == 'list':
+                    progress_bar.update(len(res_json['data'])) # update tqdm progress
+                    
+                    res_df = pd.DataFrame(res_json['data'])#.set_index('id')
+                    res = pd.concat([res, res_df]) # append newly fetched rows
+                    # if i is not None: #DEBUG
+                    #     print(f'task {i}: {100*len(res)/res_json["total_cards"]:.2f}% : {len(res)}/{res_json["total_cards"]}')
+                    # res += res_json['data']
+                    has_more = res_json['has_more']
+                else:
+                    res = res_json
+                    has_more = False # break
+
+                if has_more:
+                    url = res_json['next_page']
 
         # Convert res into a dataframe/series
         try:
@@ -134,10 +160,10 @@ class scryfall:
         # download with tqdm progress bar
         res = requests.get(download_uri, stream=True)        
         frame = bytearray()
-        with tqdm(unit='B', unit_divisor=1024, unit_scale=True, total=download_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as t:
+        with tqdm(unit='B', unit_divisor=1024, unit_scale=True, total=download_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
             for chunk in res.iter_content(1024):
                 frame.extend(chunk)
-                t.update(1024)
+                progress_bar.update(1024)
         res_df = pd.DataFrame(json.loads(frame)).sort_index(axis=1)#.set_index('id')
 
         if to_file:
