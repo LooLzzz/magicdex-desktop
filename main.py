@@ -1,7 +1,9 @@
 import os
 import pandas as pd
-import fetch_data as fetch
+
 from scryfall_client import scryfall
+from dtd import Backgrounds
+import fetch_data as fetch
 from config import Config
 
 if __name__ == "__main__":
@@ -10,6 +12,9 @@ if __name__ == "__main__":
 
     # download `n` random images from df
     fetch.fetch_card_images(cards_df, limit_n=50, max_workers=5, delay=0.2)
+
+    bgs = Backgrounds()
+    img = bgs.get_random()
 
     # loaded_sets.columns
     # list(loaded_sets[loaded_sets['digital']==True]['code'])

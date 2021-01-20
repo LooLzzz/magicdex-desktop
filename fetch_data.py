@@ -35,7 +35,7 @@ def fetch_card_img(card, to_file=False):
                     .replace(' ', '_') \
                     .replace('-', '_') \
                     .replace(',', '') \
-                    .replace('\'', '')
+                    .replace("'", '')
     filename = f'{setid}-{card_name}'
     subdir = f"{Config.cards_path}/images"
     path = f'{subdir}/{filename}.jpg'
