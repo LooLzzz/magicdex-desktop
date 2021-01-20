@@ -158,13 +158,20 @@ class scryfall:
 
         # print('downloading bulk..') #DEBUG
         # download with tqdm progress bar
-        res = requests.get(download_uri, stream=True)        
+        res = requests.get(download_uri, stream=True)
         frame = bytearray()
-        with tqdm(unit='B', unit_divisor=1024, unit_scale=True, total=download_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
-            for chunk in res.iter_content(1024):
+        chunk_size = 2**10 #1024
+        with tqdm(unit='B', unit_divisor=chunk_size, leave=True, unit_scale=True, total=download_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+            progress_bar.leave = True
+            for chunk in res.iter_content(chunk_size):
                 frame.extend(chunk)
-                progress_bar.update(1024)
+                progress_bar.update(chunk_size)
+            progress_bar.n = download_size
+            progress_bar.refresh()
+        
+        print('converting downloaded json to DataFrame..') #DEBUG        
         res_df = pd.DataFrame(json.loads(frame)).sort_index(axis=1)#.set_index('id')
+        res_df = scryfall.prune_df(res_df)
 
         if to_file:
             scryfall.to_json(res_df, subdir, filename=filename, *args, **kwargs)
@@ -184,34 +191,39 @@ class scryfall:
     #################
 
     @staticmethod
-    def read_json(path, orient='records', lines=True, no_digital=True, en_only=True, *args, **kwargs):
+    def prune_df(df, en_only=True, no_digital=True):
         '''
-        Used to load a df full of cards or set info. \n
-        If '`path`.json' contains cards, then drop all cards without an image and cards that are purely digital.
+        df is excepted to contain cards
+        '''
+        # remove all cards without `image_uris`
+        nans = df[ df['image_uris'].isna() ].index
+        df = df.drop(nans)
+        # df = df[ df['image_uris'].apply(lambda item: item is not None or reduce(lambda a,b: a != None and b != None, item.values()) ) ]
+        
+        # keep only english cards
+        if en_only:
+            df = df[ df['lang'] == 'en' ]
+
+        # remove all digital only sets
+        if no_digital:
+            df = df[ df['set'].apply(lambda item: item not in Config.digital_sets) ]
+        return df
+
+    @staticmethod
+    def read_json(path, orient='records', lines=True, *args, **kwargs):
+        '''
+        Used to load DataFrames full of cards or set info.
         '''
         print(f"loading '{path}'..") #DEBUG
         df = pd.read_json(path, orient=orient, lines=lines, *args, **kwargs)
-        
-        # if this is true, then we are loading card_df
-        if 'set' in df:
-            # remove all cards without `img_uris`
-            df[ df['image_uris'].apply(lambda item: item is not None ) ]
-            
-            # keep only english cards
-            if en_only:
-                df = df[ df['lang'] == 'en' ]
-
-            # remove all digital only sets
-            if no_digital:
-                df = df[ df['set'].apply(lambda item: item not in Config.digital_sets) ]
 
         return df
 
     @staticmethod
-    def to_json(df:pd.DataFrame, subdir, filename='cards', orient='records', lines=True, indent=0, *args, **kwargs):
+    def to_json(df:pd.DataFrame, subdir, filename='cards', orient='records', lines=True, indent=0, no_digital=True, en_only=True, *args, **kwargs):
         '''
-        save df as json format.
-        a quality of life function.
+        Used to save DataFrames full of cards or set info. \n
+        If DF contains cards, then drop all cards without an image and cards that are purely digital.
         '''
         if subdir == None or subdir == '':
             subdir = Config.cards_path
@@ -223,5 +235,10 @@ class scryfall:
         else:
             filename = re.sub(r'(\.json)$', '', filename)
         print(f"saving data to '{subdir}/{filename}.json'..") #DEBUG
+
+        # if this is true, then df is a card_df
+        if 'set' in df:
+            df = scryfall.prune_df(df, en_only, no_digital)
+
         os.makedirs(subdir, exist_ok=True)
         return df.to_json(f'{subdir}/{filename}.json', orient=orient, lines=lines, indent=indent, *args, **kwargs)

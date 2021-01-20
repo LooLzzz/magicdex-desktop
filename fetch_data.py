@@ -6,7 +6,7 @@ from task_executor import TaskExecutor
 from config import Config
 # from IPython.display import display
 
-def load_all(df_type):
+def load_all(df_type, to_file=True, *args, **kwargs):
     '''
     `df_kind` should be one of {'cards', 'sets'}
     '''
@@ -17,7 +17,7 @@ def load_all(df_type):
     else:
         # bulk_type = df_kind=='cards' ? 'default_cards' : 'all_sets'
         bulk_type = 'default_cards' if df_type=='cards' else 'all_sets'
-        df = scryfall.get_bulk_data(bulk_type, to_file=True, filename=f'all_{df_type}')
+        df = scryfall.get_bulk_data(bulk_type, to_file=to_file, filename=f'all_{df_type}')
     return df
 
 def fetch_card_img(card, to_file=False):
@@ -40,7 +40,6 @@ def fetch_card_img(card, to_file=False):
     subdir = f"{Config.cards_path}/images"
     path = f'{subdir}/{filename}.jpg'
 
-    
     # get img from local dir
     if os.path.exists(path):
         print(f"image exists, loading '{filename}'..") #DEBUG
