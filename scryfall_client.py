@@ -93,7 +93,7 @@ class scryfall:
                 response = requests.get(url)
                 response.raise_for_status() # will raise for anything other than 1xx or 2xx
                 res_json = response.json()
-                progress_bar.total = res_json['total_cards']
+                progress_bar.total = res_json['total_cards'] if 'total_cards' in res_json else len(res_json['data'])
                 progress_bar.refresh()
 
                 if res_json['object'] == 'list':
@@ -171,6 +171,7 @@ class scryfall:
         
         print('converting downloaded json to DataFrame..') #DEBUG        
         res_df = pd.DataFrame(json.loads(frame)).sort_index(axis=1)#.set_index('id')
+        # prune un-needed data
         res_df = scryfall.prune_df(res_df)
 
         if to_file:
@@ -195,9 +196,16 @@ class scryfall:
         '''
         df is excepted to contain cards
         '''
+        # flip cards main image_uris is None by default.
+        # the image_uris of its card faces are located in ['card_faces'][0/1]['image_uris']
+        # extract image_uris of all flip cards
+        flips = df[ df['image_uris'].isna() & df['name'].apply(lambda card_name: '//' in card_name) ]
+        for i in flips.index:
+            df.iloc[i]['image_uris'] = df.iloc[i]['card_faces'][0]['image_uris']
+        
         # remove all cards without `image_uris`
-        nans = df[ df['image_uris'].isna() ].index
-        df = df.drop(nans)
+        nans = df[ df['image_uris'].isna() ]
+        df = df.drop(nans.index)
         # df = df[ df['image_uris'].apply(lambda item: item is not None or reduce(lambda a,b: a != None and b != None, item.values()) ) ]
         
         # keep only english cards
@@ -206,7 +214,7 @@ class scryfall:
 
         # remove all digital only sets
         if no_digital:
-            df = df[ df['set'].apply(lambda item: item not in Config.digital_sets) ]
+            df = df[ ~ df['set'].isin(Config.digital_sets) ]
         return df
 
     @staticmethod
@@ -237,7 +245,7 @@ class scryfall:
         print(f"saving data to '{subdir}/{filename}.json'..") #DEBUG
 
         # if this is true, then df is a card_df
-        if 'set' in df:
+        if 'image_uris' in df:
             df = scryfall.prune_df(df, en_only, no_digital)
 
         os.makedirs(subdir, exist_ok=True)

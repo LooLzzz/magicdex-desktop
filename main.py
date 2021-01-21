@@ -1,5 +1,6 @@
-import os
+import os, cv2
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from scryfall_client import scryfall
 from dtd import Backgrounds
@@ -11,10 +12,20 @@ if __name__ == "__main__":
     sets_df = fetch.load_all('sets')
 
     # download `n` random images from df
-    fetch.fetch_card_images(cards_df, limit_n=50, max_workers=5, delay=0.2)
+    fetch.fetch_card_images(cards_df, limit_n=10, max_workers=5, delay=0.2)
 
     bgs = Backgrounds()
-    img = bgs.get_random()
+    # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    
+    while True:
+        img = bgs.get_random()
+        cv2.imshow('image', img)
+        key = cv2.waitKey(0)
+        if key == 32: #space key
+            continue
+        else:
+            break
+    cv2.destroyAllWindows()
 
     # loaded_sets.columns
     # list(loaded_sets[loaded_sets['digital']==True]['code'])
