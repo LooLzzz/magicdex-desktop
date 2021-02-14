@@ -1,7 +1,7 @@
 import os, random, requests, cv2, tarfile
-from glob import glob
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+# from glob import glob
+# import matplotlib.pyplot as plt
 
 from config import Config
 
@@ -14,7 +14,7 @@ class Singleton(type):
             cls._instances[cls].__init__(*args, **kwargs)
         return cls._instances[cls]
 
-class Backgrounds(metaclass=Singleton):
+class _Backgrounds(metaclass=Singleton):
     """
     Container class for all background images for generator
     Referenced from geaxgx's playing-card-detection: https://github.com/geaxgx/playing-card-detection
@@ -26,25 +26,18 @@ class Backgrounds(metaclass=Singleton):
             self._download_url = Config.dtd_download_url
             self._dtd_path = Config.dtd_path
             self._load_dtd() # create & load `_images`
-        
-        # if not os.path.exists(dumps_dir):
-        #     print('Warning: directory for dump %s doesn\'t exist' % dumps_dir)
-        #     return
-        # self._images = []
-        # for dump_name in glob(dumps_dir + '/*.pck'):
-        #     with open(dump_name, 'rb') as dump:
-        #         print('Loading ' + dump_name)
-        #         images = pickle.load(dump)
-        #         self._images += images
-        # if len(self._images) == 0:
-        #     self._images = load_dtd()
-        # print('# of images loaded: %d' % len(self._images))
+            
+            # for dump_name in glob(dumps_dir + '/*.pck'):
+            #     with open(dump_name, 'rb') as dump:
+            #         print('Loading ' + dump_name)
+            #         images = pickle.load(dump)
+            #         self._images += images
+            # if len(self._images) == 0:
+            #     self._images = load_dtd()
+            # print('# of images loaded: %d' % len(self._images))
 
-    def get_random(self, display=False):
-        bg = random.choice(self._images)
-        if display:
-            plt.show(bg)
-        return bg
+    def get_random(self):
+        return random.choice(self._images)
 
     def _load_dtd(self): #, dump_it=True, dump_batch_size=1000):
         """
@@ -63,17 +56,21 @@ class Backgrounds(metaclass=Singleton):
                 elif res.lower() == 'n':
                     exit()
 
-        file_count = 0
-        for (_,_,files) in os.walk(self._dtd_path):
-            files = [ f for f in files if f.endswith('.jpg') ]
-            file_count += len(files)
-        # Search the directory for all images, and append them to a single list
-        with tqdm(unit='file', unit_scale=True, total=file_count, desc='Loading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
-            for subdir in glob(self._dtd_path + "/images/*"):
-                for f in glob(subdir + "/*.jpg"):
-                    self._images.append(cv2.imread(f))
-                    progress_bar.update(1)
-        print(f"loaded {len(self._images)} images")
+        # file_count = 0
+        for (dirpath,_dirnames,files) in os.walk(self._dtd_path):
+            files = [ f for f in files if f.endswith('.jpg') ] # choose all jpgs
+            if len(files) > 0:
+                dirpath = dirpath.replace('\\', '/')
+                self._images += [ f'{dirpath}/{f}' for f in files ]
+            # file_count += len(files)
+        
+        # # Search the directory for all images, and append them to a single list
+        # with tqdm(unit='file', unit_scale=True, total=file_count, desc='Loading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+        #     for subdir in glob(self._dtd_path + "/images/*"):
+        #         for f in glob(subdir + "/*.jpg"):
+        #             self._images.append(cv2.imread(f))
+        #             progress_bar.update(1)
+        # print(f"loaded {len(self._images)} images")
 
         # # Save them as a pickle if necessary
         # if dump_it:
@@ -106,3 +103,5 @@ class Backgrounds(metaclass=Singleton):
                 # Extract each file to another directory
                 archive_file.extract(file, Config.data_path)
         os.remove(arcive_path)
+
+Backgrounds = _Backgrounds()

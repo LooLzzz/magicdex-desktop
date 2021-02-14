@@ -1,23 +1,23 @@
 import requests, cv2, os
 import pandas as pd
 import numpy as np
-from scryfall_client import scryfall
+import scryfall_client as Scryfall
 from task_executor import TaskExecutor
 from config import Config
 # from IPython.display import display
 
-def load_all(df_type, to_file=True, *args, **kwargs):
+def load_all(df_type:str, to_file=True, *args, **kwargs):
     '''
     `df_kind` should be one of {'cards', 'sets'}
     '''
     df = None
     path = f'{Config.cards_path}/all_{df_type}.json'
     if os.path.exists(path):
-        df = scryfall.read_json(path)
+        df = Scryfall.read_json(path)
     else:
         # bulk_type = df_kind=='cards' ? 'default_cards' : 'all_sets'
         bulk_type = 'default_cards' if df_type=='cards' else 'all_sets'
-        df = scryfall.get_bulk_data(bulk_type, to_file=to_file, filename=f'all_{df_type}')
+        df = Scryfall.get_bulk_data(bulk_type, to_file=to_file, filename=f'all_{df_type}')
     return df
 
 def fetch_card_img(card, to_file=False):

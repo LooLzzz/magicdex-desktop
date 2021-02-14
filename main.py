@@ -2,9 +2,9 @@ import os, cv2
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from scryfall_client import scryfall
-from dtd import Backgrounds
+import scryfall_client as Scryfall
 import fetch_data as fetch
+from dtd import Backgrounds as bg
 from config import Config
 
 if __name__ == "__main__":
@@ -14,11 +14,11 @@ if __name__ == "__main__":
     # download `n` random images from df
     fetch.fetch_card_images(cards_df, limit_n=10, max_workers=5, delay=0.2)
 
-    bgs = Backgrounds()
+    # bgs = Backgrounds()
     # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     
     while True:
-        img = bgs.get_random()
+        img = bg.get_random()
         cv2.imshow('image', img)
         key = cv2.waitKey(0)
         if key == 32: #space key
