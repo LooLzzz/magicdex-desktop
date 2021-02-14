@@ -20,15 +20,19 @@ def load_all(df_type:str, to_file=True, *args, **kwargs):
         df = Scryfall.get_bulk_data(bulk_type, to_file=to_file, filename=f'all_{df_type}')
     return df
 
-def fetch_card_img(card, to_file=False):
+def fetch_card_img(card, to_file=False, verbose=True):
     '''
-    `card` should have the following properties: {`set`, `name`, (`image_uris` or `img_url`)}
+    `card` should have the following properties: {`set`, `name`, (`collector_number` or `number`), (`image_uris` or `img_url`)}
     '''
     if 'image_uris' in card:
         # img_url = card['image_uris']['large']
         img_url = card['image_uris']['normal']
     else:
         img_url = card['img_url']
+    if 'collector_number' in card:
+        number = card['collector_number']
+    else:
+        number = card['number']
     setid = card['set']
     card_name = card['name'] \
                     .lower() \
@@ -36,17 +40,19 @@ def fetch_card_img(card, to_file=False):
                     .replace('-', '_') \
                     .replace(',', '') \
                     .replace("'", '')
-    filename = f'{setid}-{card_name}'
+    filename = f'{setid}-{number}-{card_name}'
     subdir = f"{Config.cards_path}/images"
     path = f'{subdir}/{filename}.jpg'
 
     # get img from local dir
     if os.path.exists(path):
-        print(f"image exists, loading '{filename}'..") #DEBUG
+        if verbose:
+            print(f"image exists, loading '{filename}'..") #DEBUG
         return cv2.imread(path)
     # else:
     # get img from url
-    print(f"image doesnt exist, fetching '{filename}'..") #DEBUG
+    if verbose:
+        print(f"image doesnt exist, fetching '{filename}'..") #DEBUG
     res = requests.get(img_url, stream=True).raw
     img = np.asarray(bytearray(res.read()), dtype="uint8")
     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
@@ -55,7 +61,8 @@ def fetch_card_img(card, to_file=False):
     if to_file:
         os.makedirs(subdir, exist_ok=True)
         cv2.imwrite(path, img)
-    print(f"'{filename}' done.")
+    if verbose:
+        print(f"'{filename}' done.")
     return img
 
 def fetch_card_images(cards_df:pd.DataFrame, limit_n=None, limit_frac=None, max_workers=5, delay=0.1):#, i=None):

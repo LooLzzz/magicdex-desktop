@@ -10,15 +10,17 @@ for example, there are two annotations for `a1.jpg` in `a1.txt`:
 
 '''
 
-class cardObject:
-    def __init__(self, cardname='', setid='', parent=None, dim=(0,0)):
+class CardObject:
+    def __init__(self, id=None, cardname='', setid='', parent=None, dim=(0,0)):
+        self.id = id
         self.cardname = cardname
         self.setid = setid
-        self.parent = parent
+        self.parent = parent # type(parent) = ImageObject
         
-        x = dim[0]/2
-        y = dim[1]/2
-        if parent is not None:
+        if parent is None:
+            x = dim[0]/2
+            y = dim[1]/2
+        else:
             x = (dim[0]/parent.dim[0])/2
             y = (dim[1]/parent.dim[1])/2
 
@@ -28,20 +30,17 @@ class cardObject:
             'w': dim[0],
             'h': dim[1],
         }
-    
-    def set_parent(self, parent):
-        pass
 
 ############################################################
 
 class ImageObject:
     def __init__(self, background=None, cards=[], dim=(0,0)):
         self.background = background
-        self.cards = cards
+        self.cards = cards # type(cards) = CardObject[]
         self.dim = dim # dim = (width,height)
     
     def add_card(self, card):
-        card.set_parent(self)
+        card.parent = self
         self.cards += [card]
 
     def gen_img(self):

@@ -13,7 +13,7 @@ from tqdm import tqdm
 from config import Config
 _base_url = 'https://api.scryfall.com'
 
-def use_api(path:str, i=None, **kwargs):
+def use_api(path:str, **kwargs):
     '''
     Freely use scryfall's api at https://api.scryfall.com
     
@@ -60,6 +60,12 @@ def use_api(path:str, i=None, **kwargs):
                 i += 1
         
         res = reduce(lambda a,b: f'{a}+{b}', splits)
+        
+        i = res.find('date:')
+        if i != -1:
+            # remove the `:` from date
+            i += 4
+            res = res[:i] + res[i+1:]
         return res
 
     def _gen_full_url():
@@ -81,6 +87,11 @@ def use_api(path:str, i=None, **kwargs):
     
     #########
 
+    i = None
+    try:
+        i = kwargs.pop('i')
+    except KeyError:
+        pass
     url = _gen_full_url()
     has_more = True
     res = None
@@ -184,7 +195,17 @@ def get_all_sets(to_file=False, subdir=None, filename='sets', *args, **kwargs):
         to_json(sets_df, subdir, filename=filename, *args, **kwargs)
     return sets_df
 
-#################
+def get_card_from_id(id):
+    url = f'{_base_url}/cards/{id}'
+    response = requests.get(url)
+    response.raise_for_status() # will raise for anything other than 1xx or 2xx
+    
+    card = response.json()
+    return card
+
+#########################################################################################
+#########################################################################################
+#########################################################################################
 
 def prune_df(df, en_only=True, no_digital=True):    
     '''
