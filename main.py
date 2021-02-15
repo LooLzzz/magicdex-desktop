@@ -4,15 +4,20 @@ from matplotlib import pyplot as plt
 
 import scryfall_client as Scryfall
 import fetch_data as fetch
+import p_hash as phash
 from dtd import Backgrounds as bg
 from config import Config
 
 if __name__ == "__main__":
     cards_df = fetch.load_all('cards')
     sets_df = fetch.load_all('sets')
-
+    
     # download `n` random images from df
     fetch.fetch_card_images(cards_df, limit_n=10, max_workers=5, delay=0.2)
+
+    flag = input('would you like to calculate pHash for all the cards? THIS WILL TAKE ABOUT 10-15 MINUTES (y/n): ')
+    if flag:
+        phash_df = phash.get_pHash()
 
     # bgs = Backgrounds()
     # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))

@@ -3,7 +3,7 @@ from imagehash import phash
 from PIL import Image
 import pandas as pd
 from tqdm import tqdm
-from datetime import date
+from datetime import date, datetime
 
 import scryfall_client as Scryfall
 import fetch_data as fetch
@@ -125,18 +125,31 @@ def get_pHash(img_type='border_crop', max_workers=200):
         with open(filename, 'rb') as f_in:
             obj = pickle.load(f_in)
         
-        obj_date = obj['date']
         phash_df = obj['data']
+        date_y_m_d = obj['date']
+        date_d_m_y = datetime.strptime(date_y_m_d, '%Y-%m-%d').strftime('%d-%m-%Y')
 
-        cards_df = Scryfall.search(q={'date':'>'+obj_date}) # update pHashes if more cards are available
-        if cards_df != None and len(cards_df) > 0:
-            res = calc_pHash_from_df(cards_df, img_type, max_workers)
-            phash_df = pd.concat([phash_df, res])
+        print(f'pHash pickle date: {date_d_m_y}')
+        update_flag = input('would you like to try to update it (y/n)? ').lower()
+        while update_flag!='y' and update_flag!='n':
+            update_flag = input().lower()
         
-        # TODO remove duplicates from {cards_df X phash_df}
-
+        if update_flag == 'y':
+            cards_df = Scryfall.search(q={'date':'>'+date_y_m_d}) # update pHashes if more cards are available
+            # cards_df = fetch.load_all('cards')
+            
+            if cards_df is not None and len(cards_df) > 0:
+                cards_df = cards_df.loc[ map(lambda x: x not in phash_df['id'].to_list(), cards_df['id'].to_list()) ]
+                
+                if len(cards_df) > 0:
+                    print(f'updating pHash for {len(cards_df)} cards')
+                    res = calc_pHash_from_df(cards_df, img_type, max_workers)
+                    phash_df = pd.concat([phash_df, res])
+                else:
+                    print(f'pHash df is up to date')
+                    return phash_df
     else:
-        cards_df = fetch.load_all('cards')    
+        cards_df = fetch.load_all('cards')
         phash_df = calc_pHash_from_df(cards_df, img_type, max_workers)
     
     # dump `pHash_df` with an appended date

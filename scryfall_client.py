@@ -97,15 +97,16 @@ def use_api(path:str, **kwargs):
     res = None
 
     # get cards dataset as json from query
-    with tqdm(total=None, unit='cards', unit_scale=True, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+    with tqdm(total=None, unit='cards', unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
         while has_more:
             response = requests.get(url)
             response.raise_for_status() # will raise for anything other than 1xx or 2xx
             res_json = response.json()
-            progress_bar.total = res_json['total_cards'] if 'total_cards' in res_json else len(res_json['data'])
+            progress_bar.desc = 'Gathering'
             progress_bar.refresh()
 
             if res_json['object'] == 'list':
+                progress_bar.total = res_json['total_cards'] if 'total_cards' in res_json else len(res_json['data'])
                 progress_bar.update(len(res_json['data'])) # update tqdm progress
                 
                 res_df = pd.DataFrame(res_json['data'])#.set_index('id')
@@ -115,7 +116,7 @@ def use_api(path:str, **kwargs):
                 # res += res_json['data']
                 has_more = res_json['has_more']
             else:
-                res = res_json
+                res = pd.DataFrame(pd.Series(res_json)).transpose()
                 has_more = False # break
 
             if has_more:
@@ -132,7 +133,7 @@ def use_api(path:str, **kwargs):
         # if len(res) == 1:
         #     res = res.iloc[0]
     except ValueError:
-        res = pd.Series(res).sort_index()
+        res = pd.DataFrame(res).sort_index(axis=1)
     return res
 
 def search(**kwargs):
