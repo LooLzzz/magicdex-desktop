@@ -146,7 +146,7 @@ def get_pHash(img_type='border_crop', max_workers=200):
                     res = calc_pHash_from_df(cards_df, img_type, max_workers)
                     phash_df = pd.concat([phash_df, res])
                 else:
-                    print(f'pHash df is up to date')
+                    print(f'\npHash df is up to date')
                     return phash_df
     else:
         cards_df = fetch.load_all('cards')
