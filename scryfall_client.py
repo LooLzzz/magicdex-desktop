@@ -13,12 +13,13 @@ from tqdm import tqdm
 from config import Config
 _base_url = 'https://api.scryfall.com'
 
-def use_api(path:str, **kwargs):
+def use_api(path:str, literal=None, **kwargs):
     '''
     Freely use scryfall's api at https://api.scryfall.com
     
     ## Input
     `path` - request path/type \n
+    `literal` - pass a literal scryfall query string (Optional) \n
     `**kwargs` - enter any valid scryfall fields, for a 'not' operator use '_' \n
     ---
     ## Return
@@ -26,50 +27,77 @@ def use_api(path:str, **kwargs):
     ---
     ## Examples
     ```
-    scryfall.use_api('/cards/search', frame=2003, layout='normal', _is='funny')
-    scryfall.use_api('/cards/named', fuzzy='sol r')
+    Scryfall.use_api('/cards/search/?q=o:"exile target permanent"')
+    Scryfall.use_api('/cards/search', q={'o':"exile target permanent"})
+    Scryfall.use_api('/cards/search', q={'o':['"exile target permanent"', '"exile target creature"']})
+    Scryfall.use_api('/cards/search', literal='q=t:planeswalker')
+    Scryfall.use_api('/cards/search', frame=2003, layout='normal', _is='funny')
+    Scryfall.use_api('/cards/named', fuzzy='sol r')
     ```
     '''
     def _query_dict_to_string(q):
         '''
-        `q` = `dict({'a':['val1','val2'],'b':'val3'})` \n
-        returns `str('a:val1,val2+b:val3')`
+        `q` = `dict({'a':[val1,val2],'b':val3})` \n
+        returns `str('a:val1+a:val2+b:val3')`
         '''
 
-        # q = {'a':['val1','val2'],'b':'val3'}
-        splits = str(q) \
-            .strip('}{\'') \
-            .replace('\'','') \
-            .replace(' ','') \
-            .split(',')
-        
-        count = len(splits)-1
-        i = 0
-        while i < count:
-            if '[' in splits[i]:
-                if ']' in splits[i]:
-                    splits[i] = splits[i] \
-                        .replace('[', '') \
-                        .replace(']', '')
-                    i += 1
+        # q = {'a': ['val1', 'val2'], 'b': 'val3'}
+        res = ''
+        for (key,val) in q.items():
+            if not isinstance(val, (list, tuple)):
+                val = [val]
+            
+            for v in val:    
+                if key == 'date':
+                    res += f'{key}{v}+'
                 else:
-                    # splits[i] = f'{splits[i]},{splits.pop(i+1)}'
-                    splits[i] = splits[i] + ',' + splits.pop(i+1)
-                    count = len(splits)-1
-            else:
-                i += 1
-        
-        res = reduce(lambda a,b: f'{a}+{b}', splits)
-        
-        i = res.find('date:')
-        if i != -1:
-            # remove the `:` from date
-            i += 4
-            res = res[:i] + res[i+1:]
+                    res += f'{key}:"{v}"+'
+        res = res.strip('+')
         return res
+        
+        # splits = str(q) \
+        #     .strip('}{\'') \
+        #     .replace(': ',':') \
+        #     .replace(', ',',') \
+        #     .replace('" ','"') \
+        #     .replace("' ","'") \
+        #     .split(',')
+        # # splits = [ s.strip() for s in splits.split(',') ]
+        
+        # count = len(splits)-1
+        # i = 0
+        # while i < count:
+        #     if '[' in splits[i]:
+        #         if ']' in splits[i]:
+        #             splits[i] = splits[i] \
+        #                 .replace('[', '') \
+        #                 .replace(']', '')
+        #             i += 1
+        #         else:
+        #             # splits[i] = f'{splits[i]},{splits.pop(i+1)}'
+        #             splits[i] = splits[i] + ',' + splits.pop(i+1)
+        #             count = len(splits)-1
+        #     else:
+        #         i += 1
+        # res = reduce(lambda a,b: f'{a}+{b}', splits)
+        
+        # i = res.find('date:')
+        # if i != -1:
+        #     # remove the `:` from date
+        #     i += 4
+        #     res = res[:i] + res[i+1:]
+        # return res
 
     def _gen_full_url():
-        url = f"{_base_url}/{path.strip('/')}/?" # url=`https://api.scryfall.com/path/?`
+        _path = path.strip('/?')
+
+        if literal is not None:            
+            _literal = literal.strip('/?')
+            return f'{_base_url}/{_path}/?{_literal}'
+        elif len(kwargs) == 0:
+            return f'{_base_url}/{_path}'
+        # else:
+        url = f"{_base_url}/{_path}/?" # url=`https://api.scryfall.com/{path}/?{...}`
 
         for (key,val) in kwargs.items():
             # turn dict to something scryfall can understand
@@ -85,9 +113,9 @@ def use_api(path:str, **kwargs):
 
         return url
     
-    #########
+    ###############
+    ###############
 
-    i = None
     try:
         i = kwargs.pop('i')
     except KeyError:
@@ -138,7 +166,7 @@ def use_api(path:str, **kwargs):
 
 def search(**kwargs):
     '''
-    send a GET request to https://api.scryfall.com/cards/search with kwargs as query\n
+    send a GET request to `https://api.scryfall.com/cards/search` with kwargs as query\n
     return value is the response in dataframe/series form
     '''
     return use_api('/cards/search', **kwargs)

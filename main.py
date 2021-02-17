@@ -15,15 +15,17 @@ if __name__ == "__main__":
     # download `n` random images from df
     fetch.fetch_card_images(cards_df, limit_n=10, max_workers=5, delay=0.2)
 
-    flag = input('would you like to calculate pHash for all the cards? THIS WILL TAKE ABOUT 10-15 MINUTES (y/n): ')
-    if flag:
-        phash_df = phash.get_pHash()
+    flag = input('would you like to calculate pHash for all the cards? *this will take about 10-15 minutes* (Y/N): ').lower()
+    while flag!='y' and flag!='n':
+        flag = input().lower()
+    if flag=='y':
+        phash_df = phash.get_pHash_df()
 
     # bgs = Backgrounds()
     # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     
     while True:
-        img = bg.get_random()
+        img = cv2.imread(bg.get_random())
         cv2.imshow('image', img)
         key = cv2.waitKey(0)
         if key == 32: #space key
