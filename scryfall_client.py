@@ -23,7 +23,7 @@ def use_api(path:str, literal=None, **kwargs):
     `**kwargs` - enter any valid scryfall fields, for a 'not' operator use '_' \n
     ---
     ## Return
-    pd.DataFrame` or `pd.Series` \n
+    `pd.DataFrame` or `pd.Series` \n
     ---
     ## Examples
     ```
@@ -55,39 +55,6 @@ def use_api(path:str, literal=None, **kwargs):
         res = res.strip('+')
         return res
         
-        # splits = str(q) \
-        #     .strip('}{\'') \
-        #     .replace(': ',':') \
-        #     .replace(', ',',') \
-        #     .replace('" ','"') \
-        #     .replace("' ","'") \
-        #     .split(',')
-        # # splits = [ s.strip() for s in splits.split(',') ]
-        
-        # count = len(splits)-1
-        # i = 0
-        # while i < count:
-        #     if '[' in splits[i]:
-        #         if ']' in splits[i]:
-        #             splits[i] = splits[i] \
-        #                 .replace('[', '') \
-        #                 .replace(']', '')
-        #             i += 1
-        #         else:
-        #             # splits[i] = f'{splits[i]},{splits.pop(i+1)}'
-        #             splits[i] = splits[i] + ',' + splits.pop(i+1)
-        #             count = len(splits)-1
-        #     else:
-        #         i += 1
-        # res = reduce(lambda a,b: f'{a}+{b}', splits)
-        
-        # i = res.find('date:')
-        # if i != -1:
-        #     # remove the `:` from date
-        #     i += 4
-        #     res = res[:i] + res[i+1:]
-        # return res
-
     def _gen_full_url():
         _path = path.strip('/?')
 
@@ -116,10 +83,10 @@ def use_api(path:str, literal=None, **kwargs):
     ###############
     ###############
 
-    try:
-        i = kwargs.pop('i')
-    except KeyError:
-        pass
+    # try:
+    #     i = kwargs.pop('i') #DEBUG
+    # except KeyError:
+    #     pass
     url = _gen_full_url()
     has_more = True
     res = None
@@ -166,18 +133,24 @@ def use_api(path:str, literal=None, **kwargs):
 
 def search(**kwargs):
     '''
-    send a GET request to `https://api.scryfall.com/cards/search` with kwargs as query\n
-    return value is the response in dataframe/series form
+    Send a GET request to `https://api.scryfall.com/cards/search` with kwargs as query\n
+    
+    ## Return
+    The response casted to dataframe/series
     '''
     return use_api('/cards/search', **kwargs)
 
 def get_bulk_data(bulk_type='default_cards', to_file=False, subdir=None, filename='Cards', *args, **kwargs):
     '''
-    `cards_type` should be one of [`oracle_cards`, `unique_artwork`, `default_cards`, `all_cards`, `rulings`, 'all_sets']\n
-        * if `cards_type` is `None` or `''` then it fallsback to `default_cards`\n
+    Get bulk data from scryfall. \n
+
+    ## Input
+    `cards_type` should be one of `{'oracle_cards', 'unique_artwork', 'default_cards', 'all_cards', 'rulings', 'all_sets'}`\n
+        * if `cards_type` is `None` or `''` then it fallsback to `'default_cards'`\n
         * setting `bulk_type='all_sets'` will result in calling `get_all_sets()` method
 
-    return value is the response in dataframe/series form
+    ## Return
+    The response casted to dataframe/series
     '''
     if bulk_type==None or bulk_type=='':
         bulk_type = 'default_cards'

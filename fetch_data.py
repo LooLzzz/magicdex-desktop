@@ -66,6 +66,15 @@ def fetch_card_img(card, to_file=False, verbose=True):
     return img
 
 def fetch_card_images(cards_df:pd.DataFrame, limit_n=None, limit_frac=None, max_workers=5, delay=0.1):#, i=None):
+    '''
+    Return n card images from `cards_df`.\n
+    ---
+    `cards_df` cards dataframe\n
+    `limit_n:int` (optional) how many cards to pool from `cards_df`\n
+    `limit_frac:float[0-1]` (optional) how many cards to pool from `cards_df`\n
+    `max_workers` will be passed to TaskExecutor\n
+    `delay` will be passed to TaskExecutor
+    '''
     if limit_n != None:
         cards_df = cards_df.sample(n=limit_n)
     elif limit_frac != None:

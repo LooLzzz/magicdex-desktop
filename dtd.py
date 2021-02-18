@@ -41,9 +41,11 @@ class _Backgrounds(metaclass=Singleton):
 
     def _load_dtd(self): #, dump_it=True, dump_batch_size=1000):
         """
-        Load Describable Texture Dataset (DTD) from local
-        :param dtd_path: path of the DTD images folder
-        :return: list of all DTD images
+        Load Describable Texture Dataset (DTD) from local\n
+        ---
+        `dtd_path` path of the DTD images folder\n
+        ---
+        `return` list of all DTD images
         """
         self._images = []
         

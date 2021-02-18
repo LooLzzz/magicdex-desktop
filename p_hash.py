@@ -1,4 +1,4 @@
-import pickle, os
+import pickle, os, cv2
 from imagehash import phash
 from PIL import Image
 import pandas as pd
@@ -12,6 +12,9 @@ from task_executor import TaskExecutor
 from config import Config
 
 class Card:
+    '''
+    Class for mtg card data
+    '''
     def __init__(self, id=None, name='', set='', collector_number=None, img_url='', save_img=False):
         self.id = id
         self.name = name
@@ -23,6 +26,10 @@ class Card:
         self.phash_value = None
 
     def get_card_image(self, verbose=False):
+        '''
+        Use `Scryfall.fetch_card_img()` to get the card image.\n
+        `verbose` will be passed to `Scryfall.fetch_card_img()`
+        '''
         if self.img is not None:
             return self.img
         # else:
@@ -36,7 +43,11 @@ class Card:
         self.img = fetch.fetch_card_img(c, to_file=self.save_img, verbose=verbose)
         return self.img
 
-    def get_phash(self, hash_size=32, verbose=False):
+    def get_phash(self, hash_size=32, highfreq_factor=4, verbose=False):
+        '''
+        Calculate the card's pHash value.\n
+        `verbose` will be passed to `Scryfall.fetch_card_img()`
+        '''
         if self.phash_value is not None:
             return self.phash_value
         # else:
@@ -44,9 +55,9 @@ class Card:
         
         try:
             img = self.get_card_image(verbose)
-            img = Image.fromarray(img) # convert to PIL image
-            self.phash_value = phash(img, hash_size)
+            self.phash_value = img_to_phash(img, grayscale=True)
         except AttributeError as err:
+            # print helpful message in case of error
             print(f'error with: {self.set}-{self.collector_number}-{self.name.lower().replace(" ", "_")}') #DEBUG
             print('img_url: ', self.img_url)
             print(err)
@@ -57,6 +68,10 @@ class Card:
         return self.phash_value
 
     def to_dict(self, verbose=False):
+        '''
+        Helper function for saving the phash values in a dataframe.\n
+        `verbose` will be passed to `Scryfall.fetch_card_img()`
+        '''
         return {
             'id': self.id,
             'name': self.name,
@@ -69,66 +84,88 @@ class Card:
 ################################################################
 ################################################################
 
-def task(card, img_type, progress_bar, save_imgs=False, verbose=False):
+def img_to_phash(img, grayscale=True, hash_size=32, highfreq_factor=4):
+    '''
+    Calculate the pHash for `img`, grayscaled.\n
+    ---
+    `img` cv2 image object.\n
+    `hash_size`, `highfreq_factor` are passed to `imagehash.phash()`
+    '''
+    if grayscale:
+        # convert to grayscale
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # convert to PIL image
+    img = Image.fromarray(img)
+    return phash(img, hash_size, highfreq_factor)
+
+def _task(card, img_type, progress_bar, save_imgs=False, verbose=False):
+    '''
+    Worker function for calculating phash for `cards_df`.\n
+    ---
+    `img_type` should be one of `{'border_crop', 'normal', 'png'}`\n
+    `progress_bar` a tqdm progress bar object\n
+    `save_imgs` flag for saving the fetched card images\n
+    `verbose` will be passed to `Scryfall.fetch_card_img()`
+    '''
     res = []
     card = card.dropna()
+    cards = [card]
+
     if 'card_faces' in card \
         and 'image_uris' in card['card_faces'][0]:
         # in case of double faced cards
-        
         faces = card['card_faces']
+        cards += [card.copy()]
+        
+        cards[0]['name'] = f"{card['name']} (front)"
+        cards[1]['name'] = f"{card['name']} (back)"
+        cards[0]['image_uris'] = faces[0]['image_uris']
+        cards[1]['image_uris'] = faces[1]['image_uris']
+
         progress_bar.total += 1
         progress_bar.refresh()
-        front = Card(
-            id = card['id'],
-            name = f"{card['name']} (front)",
-            set = card['set'],
-            collector_number = card['collector_number'],
-            img_url = faces[0]['image_uris'][img_type],
+    
+    for item in cards:
+        c = Card(
+            id = item['id'],
+            name = item['name'],
+            set = item['set'],
+            collector_number = item['collector_number'],
+            img_url = item['image_uris'][img_type],
             save_img = save_imgs
         )
-        back = Card(
-            id = card['id'],
-            name = f"{card['name']} (back)",
-            set = card['set'],
-            collector_number = card['collector_number'],
-            img_url = faces[1]['image_uris'][img_type],
-            save_img = save_imgs
-        )
-        
-        res += [ front.to_dict(verbose) ]
-        progress_bar.update(n=1)
-        res += [ back.to_dict(verbose) ]
-        progress_bar.update(n=1)
-    else:
-        front = Card(
-            id = card['id'],
-            name = card['name'],
-            set = card['set'],
-            collector_number = card['collector_number'],
-            img_url = card['image_uris'][img_type],
-            save_img = save_imgs
-        )
-        res += [ front.to_dict(verbose) ]
+        res += [ c.to_dict(verbose) ]
         progress_bar.update(n=1)
     return res
 
 def calc_pHash_from_df(cards_df, img_type, max_workers, verbose=False):
-    phash_df = pd.DataFrame(columns=['id', 'set', 'collector_number', 'name', 'img_url', 'phash_value'])
-    task_master = TaskExecutor(max_workers=max_workers)
-    futures = []
-    flag = True
+    '''
+    Calculate pHashes of `cards_df` using multi threading.\n
+    ---
+    `cards_df` pandas dataframe containing cards\n
+    `img_type` should be one of `{'border_crop', 'normal', 'png'}`\n
+    `max_workers` max amount of workers in the pool\n
+    `verbose` will be passed to `Scryfall.fetch_card_img()`
+    '''
+    phash_df = pd.DataFrame(columns=['id', 'set', 'collector_number', 'name', 'img_url', 'phash_value']) # init an empty df
+    task_master = TaskExecutor(max_workers=max_workers) # init task pool
+    # futures = []
+    concat_flag = False # a flag for changing tqdm from 'phash pipeline' to 'concating results'
 
     with tqdm(total=len(cards_df), unit='cards', unit_scale=True, desc='Working on pHash pipeline', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
         for (_i,card) in cards_df.iterrows():
-            futures += [ task_master.submit(task=task, save_imgs=True, img_type=img_type, card=card, progress_bar=progress_bar, verbose=verbose) ]
+            # futures += [ task_master.submit(task=_task, save_imgs=True, img_type=img_type, card=card, progress_bar=progress_bar, verbose=verbose) ]
+            task_master.submit(task=_task, save_imgs=True, img_type=img_type, card=card, progress_bar=progress_bar, verbose=verbose)
         
-        for future in futures:
+        for future in task_master.futures:
             res = future.result()
             phash_df = phash_df.append(res)
             
-            if flag==True and progress_bar.n==progress_bar.total:
-                flag = False
+            if concat_flag==False and progress_bar.n==progress_bar.total:
+                # flip the flag only when the first progress bar is finished
+                # close the first progress bar and start a new one
+                concat_flag = True
                 tot = progress_bar.total
                 progress_bar.n = tot
                 progress_bar.refresh()
@@ -136,7 +173,7 @@ def calc_pHash_from_df(cards_df, img_type, max_workers, verbose=False):
                 # print('')
                 progress_bar = tqdm(total=tot, unit='cards', unit_scale=True, desc='Concating results', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
                 progress_bar.update(len(phash_df))
-            elif flag == False:
+            elif concat_flag:
                 progress_bar.update(1)
         
         progress_bar.n = progress_bar.total
@@ -144,18 +181,25 @@ def calc_pHash_from_df(cards_df, img_type, max_workers, verbose=False):
 
     return phash_df.reset_index(drop=True)
 
-# def get_pHash(img_type='normal', max_workers=200):
 def get_pHash_df(img_type='border_crop', max_workers=200, verbose=False):
+    '''
+    Return a dataframe with pHashes for all the cards in mtg.\n
+    ---
+    `img_type` should be one of `{'border_crop', 'normal', 'png'}`\n
+    `max_workers` max amount of workers in the pool\n
+    `verbose` will be passed to `Scryfall.fetch_card_img()`
+    '''
     phash_df = None
     subdir = f'{Config.cards_path}/pHash'
     filename = f'{subdir}/{img_type}.pickle'
 
     if os.path.exists(filename):
+        # load the pickle if it already exists
         obj = None
         with open(filename, 'rb') as f_in:
             obj = pickle.load(f_in)
         
-        phash_df = obj['data'] #.reset_index()
+        phash_df = obj['data']
         obj_date_y_m_d = obj['date']
         obj_date_d_m_y = datetime.strptime(obj_date_y_m_d, '%Y-%m-%d').strftime('%d-%m-%Y')
 
@@ -185,16 +229,14 @@ def get_pHash_df(img_type='border_crop', max_workers=200, verbose=False):
                     print(f'\npHash df is up to date')
         return phash_df
     else:
-        # cards_df = fetch.load_all('cards')
-        cards_df = Scryfall.search(literal='q=frame:2003+(color:b or color:w)') #DEBUG
+        # create a new dataframe and calculate the pHashes
+        # cards_df = Scryfall.search(literal='q=frame:2003+(color:b or color:w)') #DEBUG
+        cards_df = fetch.load_all('cards')
         phash_df = calc_pHash_from_df(cards_df, img_type, max_workers, verbose)
     
     # dump `pHash_df` with an appended date
-    # subdir = f'{Config.cards_path}/pHash'
-    # filename = f'{subdir}/{img_type}.pickle'
-    os.makedirs(subdir, exist_ok=True)
-    
     print(f"dumping to '{filename}'")
+    os.makedirs(subdir, exist_ok=True)
     with open(filename, 'wb') as f_out:
         obj = {
             'date': date.today().strftime("%Y-%m-%d"),
@@ -206,4 +248,5 @@ def get_pHash_df(img_type='border_crop', max_workers=200, verbose=False):
     return phash_df
 
 if __name__ == '__main__':
-    phash_df = get_pHash_df(max_workers=200)
+    # phash_df = get_pHash_df(max_workers=1) #DEBUG
+    phash_df = get_pHash_df()
