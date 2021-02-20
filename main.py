@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 
 import scryfall_client as Scryfall
 import fetch_data as fetch
-import p_hash as phash
+from p_hash import pHash
 from dtd import Backgrounds as bg
 from config import Config
 
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     while flag!='y' and flag!='n':
         flag = input().lower()
     if flag=='y':
-        phash_df = phash.get_pHash_df()
+        phash_df = pHash.get_pHash_df(update=True)
 
     # bgs = Backgrounds()
     # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
@@ -28,7 +28,7 @@ if __name__ == "__main__":
         img = cv2.imread(bg.get_random())
         cv2.imshow('image', img)
         key = cv2.waitKey(0)
-        if key == 32: #space key
+        if key == 32: # space key
             continue
         else:
             break

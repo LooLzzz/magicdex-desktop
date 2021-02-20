@@ -2,7 +2,7 @@
 .vscode
 *tmp*
 data/**/images/*
-data/**/*.jpg
+# data/**/*.jpg
 data/**/*dtd*
 __pycache__
 
