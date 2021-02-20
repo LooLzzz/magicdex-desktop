@@ -1,11 +1,20 @@
-import cv2, time, re, subprocess, os
+import cv2, time, re, subprocess, os, math
 import numpy as np
 import pandas as pd
 import imagehash as ih
 from PIL import Image as PILImage
 
+from task_executor import TaskExecutor
 from p_hash import pHash
 from config import Config
+
+def split_dataframe(df, chunk_size=10000):
+    chunks = []
+    num_chunks = math.ceil(len(df) / chunk_size)
+    # num_chunks = len(df) // chunk_size + 1
+    for i in range(num_chunks):
+        chunks.append(df[i*chunk_size:(i+1)*chunk_size])
+    return chunks
 
 def ResizeWithAspectRatio(image, width=None, height=None, inter=cv2.INTER_AREA):
     dim = None
@@ -147,7 +156,7 @@ def find_rects_in_image(img, thresh_c=5, kernel_size=(3, 3), size_thresh=10000):
                 stack.append((i_child, hier[0][i_child]))
     return cnts_rect
 
-def detect_image(img, hash_size=32, size_thresh=10000, display=True, debug=False):
+def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, debug=False):
     """
     Identify all cards in the input frame, display or save the frame if needed\n
     ---
@@ -161,7 +170,7 @@ def detect_image(img, hash_size=32, size_thresh=10000, display=True, debug=False
     :return: list of detected card's name/set and resulting image
     """
 
-    phash_df = pHash.get_pHash_df()
+    # phash_df = pHash.get_pHash_df()
     img_result = img.copy() # For displaying and saving
     det_cards = []
     # Detect contours of all cards in the image
@@ -185,10 +194,27 @@ def detect_image(img, hash_size=32, size_thresh=10000, display=True, debug=False
         '''
         # the stored values of hashes in the dataframe is pre-emptively flattened already to minimize computation time
         card_hash = pHash.img_to_phash(img_warp).hash.flatten()
-        phash_df['hash_diff'] = phash_df['phash'].apply(lambda x: np.count_nonzero(x != card_hash))
-        # card_hash = pHash.img_to_phash(img_warp)
-        # phash_df['hash_diff'] = phash_df['phash'] - card_hash
-        min_card = phash_df[phash_df['hash_diff'] == min(phash_df['hash_diff'])].iloc[0]
+        
+        if isinstance(phash_df, list):
+            task_master = TaskExecutor(max_workers=len(phash_df))
+            def _task(df, card_hash):
+                df = df.copy()
+                df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != card_hash))
+                min_card = df[df['hash_diff'] == min(df['hash_diff'])].iloc[0]
+                return min_card
+            for df in phash_df:
+                task_master.submit(_task, df=df, card_hash=card_hash)
+            min_card = None
+            for future in task_master.futures:
+                res = future.result()
+                if min_card is None or min_card['hash_diff'] > res['hash_diff']:
+                    min_card = res
+        else:
+            phash_df['hash_diff'] = phash_df['phash'].apply(lambda x: np.count_nonzero(x != card_hash))
+            # card_hash = pHash.img_to_phash(img_warp)
+            # phash_df['hash_diff'] = phash_df['phash'] - card_hash
+            min_card = phash_df[phash_df['hash_diff'] == min(phash_df['hash_diff'])].iloc[0]
+        
         card_name = min_card['name']
         card_set = min_card['set']
         det_cards += [ (card_name, card_set) ]
@@ -216,11 +242,15 @@ def detect_image(img, hash_size=32, size_thresh=10000, display=True, debug=False
 ################################################################
 
 def detect_images(imgs, **kwargs):
+    phash_df = pHash.get_pHash_df(update=False)
     for img in imgs:
         # detect_image(img)
-        detect_image(img, **kwargs)
+        detect_image(img, phash_df, **kwargs)
 
 def detect_video(capture, display, debug):
+    phash_df = pHash.get_pHash_df(update=False)
+    # phash_df_split = split_dataframe(phash_df, chunk_size=len(phash_df)//20)
+    # phash_df_split = split_dataframe(phash_df, chunk_size=10000)
     max_num_obj = 0
     try:
         while True:
@@ -232,7 +262,8 @@ def detect_video(capture, display, debug):
                 cv2.waitKey(0)
                 break
             
-            (det_cards, img_result) = detect_image(frame, display=False, debug=debug)
+            (det_cards, img_result) = detect_image(frame, phash_df=phash_df, display=False, debug=debug)
+            # (det_cards, img_result) = detect_image(frame, phash_df=phash_df_split, display=False, debug=debug)
             if display:
                 cv2.imshow('result', img_result)
                 key = cv2.waitKey(1) & 0xFF
@@ -251,7 +282,8 @@ if __name__ == '__main__':
     # imgs = []
     # for i in range(1,6): #range=[1,...,5]
     #     imgs += [ cv2.imread(f'{Config.cards_path}/test/{i}.jpg') ]
-    # detect_images(imgs, debug=True)
+    # phash_df = pHash.get_pHash_df(update=False)
+    # detect_images(imgs, phash_df, debug=True)
 
     capture = cv2.VideoCapture(0)
     detect_video(capture, display=True, debug=True)
