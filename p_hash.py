@@ -244,7 +244,7 @@ class _pHash(metaclass=Singleton):
                                     'data': self.phash_df
                                 }
                                 pickle.dump(obj, f_out)
-                            print(f'\npHash df is up to date')
+                print(f'\npHash df is up to date')
             return self.phash_df
         else:
             # create a new dataframe and calculate the pHashes

@@ -1,12 +1,15 @@
 import cv2, time, re, subprocess, os, math
 import numpy as np
 import pandas as pd
+# from modin import pandas as modin_pd
 import imagehash as ih
 from PIL import Image as PILImage
 
 from task_executor import TaskExecutor
 from p_hash import pHash
 from config import Config
+
+os.environ['MODIN_ENGINE'] = 'dask'  # Modin will use Dask
 
 def split_dataframe(df, chunk_size=10000):
     chunks = []
@@ -56,7 +59,6 @@ def order_points(pts):
 
     # return the ordered coordinates
     return rect
-
 
 def four_point_transform(image, pts):
     """
@@ -175,8 +177,7 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
     det_cards = []
     # Detect contours of all cards in the image
     cnts = find_rects_in_image(img_result, size_thresh=size_thresh)
-    for i in range(len(cnts)):
-        cnt = cnts[i]
+    for (i,cnt) in enumerate(cnts):
         # For the region of the image covered by the contour, transform them into a rectangular image
         pts = np.float32([p[0] for p in cnt])
         img_warp = four_point_transform(img, pts)
@@ -192,29 +193,14 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
         art_hash = ih.phash(img_art, hash_size=hash_size).hash.flatten()
         phash_df['hash_diff'] = phash_df['art_hash'].apply(lambda x: np.count_nonzero(x != art_hash))
         '''
-        # the stored values of hashes in the dataframe is pre-emptively flattened already to minimize computation time
-        card_hash = pHash.img_to_phash(img_warp).hash.flatten()
+        # the stored values of hashes in the dataframe are pre-emptively flattened to minimize computation time
+        phash_value = pHash.img_to_phash(img_warp).hash.flatten()
+
+        phash_df['hash_diff'] = phash_df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
+        # card_hash = pHash.img_to_phash(img_warp)
+        # phash_df['hash_diff'] = phash_df['phash'] - card_hash
         
-        if isinstance(phash_df, list):
-            task_master = TaskExecutor(max_workers=len(phash_df))
-            def _task(df, card_hash):
-                df = df.copy()
-                df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != card_hash))
-                min_card = df[df['hash_diff'] == min(df['hash_diff'])].iloc[0]
-                return min_card
-            for df in phash_df:
-                task_master.submit(_task, df=df, card_hash=card_hash)
-            min_card = None
-            for future in task_master.futures:
-                res = future.result()
-                if min_card is None or min_card['hash_diff'] > res['hash_diff']:
-                    min_card = res
-        else:
-            phash_df['hash_diff'] = phash_df['phash'].apply(lambda x: np.count_nonzero(x != card_hash))
-            # card_hash = pHash.img_to_phash(img_warp)
-            # phash_df['hash_diff'] = phash_df['phash'] - card_hash
-            min_card = phash_df[phash_df['hash_diff'] == min(phash_df['hash_diff'])].iloc[0]
-        
+        min_card = phash_df[phash_df['hash_diff'] == min(phash_df['hash_diff'])].iloc[0]
         card_name = min_card['name']
         card_set = min_card['set']
         det_cards += [ (card_name, card_set) ]
@@ -242,16 +228,40 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
 ################################################################
 
 def detect_images(imgs, **kwargs):
-    phash_df = pHash.get_pHash_df(update=False)
+    phash_df = pd.DataFrame(pHash.get_pHash_df(update=False))
     for img in imgs:
         # detect_image(img)
         detect_image(img, phash_df, **kwargs)
+        cv2.destroyAllWindows()
+
+def _task(img, df, hash_size=32):
+    det_cards = []
+    cnts = find_rects_in_image(img)
+    for cnt in cnts:
+        pts = np.float32([p[0] for p in cnt])
+        img_warp = four_point_transform(img, pts)
+        
+        phash_value = pHash.img_to_phash(img_warp).hash.flatten()
+        df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
+
+        min_diff = min(df['hash_diff'])
+        min_card = df[df['hash_diff'] == min_diff].iloc[0]
+        card_name = min_card['name']
+        # card_set = min_card['set']
+        det_cards += [ (cnt, card_name, img_warp, min_diff) ]
+    return det_cards
+
+        # cv2.drawContours(img_result, [cnt], -1, (255, 0, 0), 7)
+        # cv2.putText(img_result, card_name, (min(pts[0][0], pts[1][0]), min(pts[0][1], pts[1][1])),
+        #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+
 
 def detect_video(capture, display, debug):
+    task_master = TaskExecutor(max_workers=1)
     phash_df = pHash.get_pHash_df(update=False)
-    # phash_df_split = split_dataframe(phash_df, chunk_size=len(phash_df)//20)
-    # phash_df_split = split_dataframe(phash_df, chunk_size=10000)
+    det_cards = []
     max_num_obj = 0
+
     try:
         while True:
             (ret, frame) = capture.read()
@@ -262,16 +272,31 @@ def detect_video(capture, display, debug):
                 cv2.waitKey(0)
                 break
             
-            (det_cards, img_result) = detect_image(frame, phash_df=phash_df, display=False, debug=debug)
+            # (det_cards, img_result) = detect_image(frame, phash_df=phash_df, display=False, debug=debug)
             # (det_cards, img_result) = detect_image(frame, phash_df=phash_df_split, display=False, debug=debug)
+
+            img_result = frame.copy()
+            if len(task_master.futures) == 0:
+                task_master.submit(_task, img=frame, df=phash_df)
+            elif task_master.futures[0].done():
+                det_cards = task_master.futures.pop().result()
+            for (cnt, card_name, _, _) in det_cards:
+                pts = np.float32([p[0] for p in cnt])
+                cv2.drawContours(img_result, [cnt], -1, (255, 0, 0), 7)
+                cv2.putText(img_result, card_name, (min(pts[0][0], pts[1][0]), min(pts[0][1], pts[1][1])),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+
             if display:
                 cv2.imshow('result', img_result)
                 key = cv2.waitKey(1) & 0xFF
             
             if debug:
                 max_num_obj = max(max_num_obj, len(det_cards))
-                for i in range(len(det_cards), max_num_obj):
-                    cv2.imshow(f'Card {i}', np.zeros((1, 1), dtype=np.uint8))
+                for (i, (cnt, card_name, img_warp, hash_diff)) in enumerate(det_cards):
+                    # img_warp = four_point_transform(frame, pts)
+                    cv2.putText(img_warp, card_name + ', ' + str(hash_diff), (0, 20),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                    cv2.imshow(f'Card {i}', img_warp)
             
             elapsed_ms = (time.time() - start_time) * 1000
             print('Elapsed time: %.2f ms' % elapsed_ms)
@@ -283,7 +308,7 @@ if __name__ == '__main__':
     # for i in range(1,6): #range=[1,...,5]
     #     imgs += [ cv2.imread(f'{Config.cards_path}/test/{i}.jpg') ]
     # phash_df = pHash.get_pHash_df(update=False)
-    # detect_images(imgs, phash_df, debug=True)
+    # detect_images(imgs, debug=True)
 
     capture = cv2.VideoCapture(0)
     detect_video(capture, display=True, debug=True)
