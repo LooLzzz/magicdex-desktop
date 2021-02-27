@@ -9,7 +9,7 @@ from datetime import date, datetime
 import scryfall_client as Scryfall
 import fetch_data as fetch
 from task_executor import TaskExecutor
-from singleton import Singleton
+from utils import Singleton
 from config import Config
 
 class Card:

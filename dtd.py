@@ -3,7 +3,7 @@ from tqdm import tqdm
 # from glob import glob
 # import matplotlib.pyplot as plt
 
-from singleton import Singleton
+from utils import Singleton
 from config import Config
 
 class _Backgrounds(metaclass=Singleton):

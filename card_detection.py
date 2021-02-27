@@ -1,115 +1,16 @@
-import cv2, time, re, subprocess, os, math
+import cv2, time #, os
 import numpy as np
 import pandas as pd
 # from modin import pandas as modin_pd
-import imagehash as ih
-from PIL import Image as PILImage
+# import imagehash as ih
+# from PIL import Image as PILImage
 
+from utils import four_point_transform, resize_with_aspect_ratio, cnt_to_pts
 from task_executor import TaskExecutor
 from p_hash import pHash
-from config import Config
+# from config import Config
 
-os.environ['MODIN_ENGINE'] = 'dask'  # Modin will use Dask
-
-def split_dataframe(df, chunk_size=10000):
-    chunks = []
-    num_chunks = math.ceil(len(df) / chunk_size)
-    # num_chunks = len(df) // chunk_size + 1
-    for i in range(num_chunks):
-        chunks.append(df[i*chunk_size:(i+1)*chunk_size])
-    return chunks
-
-def ResizeWithAspectRatio(image, width=None, height=None, inter=cv2.INTER_AREA):
-    dim = None
-    (h, w) = image.shape[:2]
-
-    if width is None and height is None:
-        return image
-    if width is None:
-        r = height / float(h)
-        dim = (int(w * r), height)
-    else:
-        r = width / float(w)
-        dim = (width, int(h * r))
-
-    return cv2.resize(image, dim, interpolation=inter)
-
-# www.pyimagesearch.com/2014/08/25/4-point-opencv-getperspective-transform-example/
-def order_points(pts):
-    """
-    initialzie a list of coordinates that will be ordered such that the first entry in the list is the top-left,
-    the second entry is the top-right, the third is the bottom-right, and the fourth is the bottom-left
-    :param pts: array containing 4 points
-    :return: ordered list of 4 points
-    """
-    rect = np.zeros((4, 2), dtype="float32")
-
-    # the top-left point will have the smallest sum, whereas
-    # the bottom-right point will have the largest sum
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]
-    rect[2] = pts[np.argmax(s)]
-
-    # now, compute the difference between the points, the
-    # top-right point will have the smallest difference,
-    # whereas the bottom-left will have the largest difference
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]
-    rect[3] = pts[np.argmax(diff)]
-
-    # return the ordered coordinates
-    return rect
-
-def four_point_transform(image, pts):
-    """
-    Transform a quadrilateral section of an image into a rectangular area
-    From: www.pyimagesearch.com/2014/08/25/4-point-opencv-getperspective-transform-example/
-    :param image: source image
-    :param pts: 4 corners of the quadrilateral
-    :return: rectangular image of the specified area
-    """
-    # obtain a consistent order of the points and unpack them
-    # individually
-    rect = order_points(pts)
-    (tl, tr, br, bl) = rect
-
-    # compute the width of the new image, which will be the
-    # maximum distance between bottom-right and bottom-left
-    # x-coordiates or the top-right and top-left x-coordinates
-    width_a = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
-    width_b = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
-    max_width = max(int(width_a), int(width_b))
-
-    # compute the height of the new image, which will be the
-    # maximum distance between the top-right and bottom-right
-    # y-coordinates or the top-left and bottom-left y-coordinates
-    height_a = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
-    height_b = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
-    max_height = max(int(height_a), int(height_b))
-
-    # now that we have the dimensions of the new image, construct
-    # the set of destination points to obtain a "birds eye view",
-    # (i.e. top-down view) of the image, again specifying points
-    # in the top-left, top-right, bottom-right, and bottom-left
-    # order
-    dst = np.array([
-        [0, 0],
-        [max_width - 1, 0],
-        [max_width - 1, max_height - 1],
-        [0, max_height - 1]], dtype="float32")
-
-    # compute the perspective transform matrix and then apply it
-    mat = cv2.getPerspectiveTransform(rect, dst)
-    warped = cv2.warpPerspective(image, mat, (max_width, max_height))
-
-    # If the image is horizontally long, rotate it by 90
-    if max_width > max_height:
-        center = (max_height / 2, max_height / 2)
-        mat_rot = cv2.getRotationMatrix2D(center, 270, 1.0)
-        warped = cv2.warpAffine(warped, mat_rot, (max_height, max_width))
-
-    # return the warped image
-    return warped
+# os.environ['MODIN_ENGINE'] = 'dask'  # Modin will use Dask
 
 def find_rects_in_image(img, thresh_c=5, kernel_size=(3, 3), size_thresh=10000):
     """
@@ -141,7 +42,7 @@ def find_rects_in_image(img, thresh_c=5, kernel_size=(3, 3), size_thresh=10000):
     # Using recursive search, find the uppermost contour in the hierarchy that satisfies the condition
     # The candidate contour must be rectangle (has 4 points) and should be larger than a threshold
     cnts_rect = []
-    stack = [(0, hier[0][0])]
+    stack = [ (0, hier[0][0]) ]
     while len(stack) > 0:
         i_cnt, h = stack.pop()
         i_next, i_prev, i_child, i_parent = h
@@ -179,7 +80,7 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
     cnts = find_rects_in_image(img_result, size_thresh=size_thresh)
     for (i,cnt) in enumerate(cnts):
         # For the region of the image covered by the contour, transform them into a rectangular image
-        pts = np.float32([p[0] for p in cnt])
+        pts = cnt_to_pts(cnt)
         img_warp = four_point_transform(img, pts)
 
         # To identify the card from the card image, perceptual hashing (pHash) algorithm is used
@@ -194,7 +95,7 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
         phash_df['hash_diff'] = phash_df['art_hash'].apply(lambda x: np.count_nonzero(x != art_hash))
         '''
         # the stored values of hashes in the dataframe are pre-emptively flattened to minimize computation time
-        phash_value = pHash.img_to_phash(img_warp).hash.flatten()
+        phash_value = pHash.img_to_phash(img_warp, hash_size=hash_size).hash.flatten()
 
         phash_df['hash_diff'] = phash_df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
         # card_hash = pHash.img_to_phash(img_warp)
@@ -216,7 +117,7 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             cv2.imshow(f'Card {i}', img_warp)
     if display:
-        cv2.imshow('Result', ResizeWithAspectRatio(img_result, height=800))
+        cv2.imshow('Result', resize_with_aspect_ratio(img_result, height=800))
         cv2.waitKey(0)
 
     return (
@@ -234,32 +135,27 @@ def detect_images(imgs, **kwargs):
         detect_image(img, phash_df, **kwargs)
         cv2.destroyAllWindows()
 
-def _task(img, df, hash_size=32):
-    det_cards = []
-    cnts = find_rects_in_image(img)
-    for cnt in cnts:
-        pts = np.float32([p[0] for p in cnt])
-        img_warp = four_point_transform(img, pts)
-        
-        phash_value = pHash.img_to_phash(img_warp).hash.flatten()
-        df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
-
-        min_diff = min(df['hash_diff'])
-        min_card = df[df['hash_diff'] == min_diff].iloc[0]
-        card_name = min_card['name']
-        # card_set = min_card['set']
-        det_cards += [ (cnt, card_name, img_warp, min_diff) ]
-    return det_cards
-
-        # cv2.drawContours(img_result, [cnt], -1, (255, 0, 0), 7)
-        # cv2.putText(img_result, card_name, (min(pts[0][0], pts[1][0]), min(pts[0][1], pts[1][1])),
-        #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
-
 def detect_video(capture, display, debug):
+    def _task(img, df):
+        det_cards = []
+        cnts = find_rects_in_image(img)
+        for cnt in cnts:
+            pts = cnt_to_pts(cnt)
+            img_warp = four_point_transform(img, pts)
+            
+            phash_value = pHash.img_to_phash(img_warp).hash.flatten()
+            df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
+
+            min_diff = min(df['hash_diff'])
+            min_card = df[df['hash_diff'] == min_diff].iloc[0]
+            card_name = min_card['name']
+            # card_set = min_card['set']
+            det_cards += [ (cnt, card_name, img_warp, min_diff) ]
+        return det_cards
+
     task_master = TaskExecutor(max_workers=1)
     phash_df = pHash.get_pHash_df(update=False)
-    det_cards = []
+    det_cards = [] # each item in `det_cards` conatins `(cnt, card_name, img_warp, hash_diff)`
     max_num_obj = 0
 
     try:
@@ -280,8 +176,9 @@ def detect_video(capture, display, debug):
                 task_master.submit(_task, img=frame, df=phash_df)
             elif task_master.futures[0].done():
                 det_cards = task_master.futures.pop().result()
-            for (cnt, card_name, _, _) in det_cards:
-                pts = np.float32([p[0] for p in cnt])
+            
+            for (cnt, card_name, _img_warp, _hash_diff) in det_cards:
+                pts = cnt_to_pts(cnt)
                 cv2.drawContours(img_result, [cnt], -1, (255, 0, 0), 7)
                 cv2.putText(img_result, card_name, (min(pts[0][0], pts[1][0]), min(pts[0][1], pts[1][1])),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
