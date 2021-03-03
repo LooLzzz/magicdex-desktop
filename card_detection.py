@@ -137,12 +137,9 @@ def detect_images(imgs, **kwargs):
 
 def detect_video(capture, display, debug):
     def _task(img, df):
-        det_cards = []
-        cnts = find_rects_in_image(img)
-        for cnt in cnts:
+        def __task(df, cnt):
             pts = cnt_to_pts(cnt)
             img_warp = four_point_transform(img, pts)
-            
             phash_value = pHash.img_to_phash(img_warp).hash.flatten()
             df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
 
@@ -150,7 +147,23 @@ def detect_video(capture, display, debug):
             min_card = df[df['hash_diff'] == min_diff].iloc[0]
             card_name = min_card['name']
             # card_set = min_card['set']
-            det_cards += [ (cnt, card_name, img_warp, min_diff) ]
+            
+            return (cnt, card_name, img_warp, min_diff)
+        
+        start_time = time.time()
+        det_cards = []
+        cnts = find_rects_in_image(img)
+        if len(cnts) > 0:
+            # task_master = TaskExecutor(max_workers=len(cnts))
+            task_master = TaskExecutor(max_workers=1)
+
+            for cnt in cnts:        
+                task_master.submit(__task, df=df, cnt=cnt)
+            
+            det_cards = [ f.result() for f in task_master.futures ]
+        
+        elapsed_ms = (time.time() - start_time) * 1000
+        print('Elapsed time: %.2f ms' % elapsed_ms)
         return det_cards
 
     task_master = TaskExecutor(max_workers=1)
@@ -161,7 +174,6 @@ def detect_video(capture, display, debug):
     try:
         while True:
             (ret, frame) = capture.read()
-            start_time = time.time()
             if not ret:
                 # End of video
                 print("End of video. Press any key to exit")
@@ -194,9 +206,6 @@ def detect_video(capture, display, debug):
                     cv2.putText(img_warp, card_name + ', ' + str(hash_diff), (0, 20),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                     cv2.imshow(f'Card {i}', img_warp)
-            
-            elapsed_ms = (time.time() - start_time) * 1000
-            print('Elapsed time: %.2f ms' % elapsed_ms)
     finally:
         cv2.destroyAllWindows()
 

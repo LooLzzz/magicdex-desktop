@@ -2,7 +2,7 @@ import pickle, os, cv2
 from imagehash import phash
 from PIL import Image
 import pandas as pd
-# import numpy as np
+import numpy as np
 from tqdm import tqdm
 from datetime import date, datetime
 
@@ -100,6 +100,9 @@ class _pHash(metaclass=Singleton):
         `img` cv2 image object.\n
         `hash_size`, `highfreq_factor` are passed to `imagehash.phash()`
         '''
+        if img is None:
+            return {'hash': np.array(None)}
+        
         if grayscale:
             # convert to grayscale
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -171,7 +174,8 @@ class _pHash(metaclass=Singleton):
             
             for future in task_master.futures:
                 res = future.result()
-                phash_df = phash_df.append(res)
+                if not res[0]['phash'].all():
+                    phash_df = phash_df.append(res)
                 
                 if concat_flag==False and progress_bar.n==progress_bar.total:
                     # flip the flag only when the first progress bar is finished
@@ -236,12 +240,13 @@ class _pHash(metaclass=Singleton):
                         if update_flag == 'y':
                             print(f'\nupdating pHash for {len(cards_df)} cards')
                             res = _pHash.calc_pHash_from_df(cards_df, img_type, max_workers, flatten_phash, verbose)
-                            self.phash_df = pd.concat([self.phash_df, res]).reset_index()
+                            self.phash_df = pd.concat([self.phash_df, res]).reset_index(drop=True)
 
                             with open(filename, 'wb') as f_out:
                                 obj = {
                                     'date': date.today().strftime("%Y-%m-%d"),
-                                    'data': self.phash_df
+                                    'data': self.phash_df,
+                                    # 'data': phash_df,
                                 }
                                 pickle.dump(obj, f_out)
                 print(f'\npHash df is up to date')
