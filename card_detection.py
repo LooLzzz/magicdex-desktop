@@ -136,34 +136,41 @@ def detect_images(imgs, **kwargs):
         cv2.destroyAllWindows()
 
 def detect_video(capture, display, debug):
-    def _task(img, df):
-        def __task(df, cnt):
+    def _task(img, det_cards_old, df, threshold=350):
+        start_time = time.time()
+        det_cards = []
+        det_cards_old = pd.DataFrame( [pd.Series(d) for d in det_cards_old] ) # convert the list of dicts to dataframe
+        cnts = find_rects_in_image(img)
+
+        for cnt in cnts:
             pts = cnt_to_pts(cnt)
             img_warp = four_point_transform(img, pts)
             phash_value = pHash.img_to_phash(img_warp).hash.flatten()
-            df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
+            min_diff = threshold+1
 
-            min_diff = min(df['hash_diff'])
-            min_card = df[df['hash_diff'] == min_diff].iloc[0]
-            card_name = min_card['name']
-            # card_set = min_card['set']
+            if len(det_cards_old) > 0:
+                det_cards_old['hash_diff'] = det_cards_old['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
+                min_diff = min(det_cards_old['hash_diff'])
             
-            return (cnt, card_name, img_warp, min_diff)
-        
-        start_time = time.time()
-        det_cards = []
-        cnts = find_rects_in_image(img)
-        if len(cnts) > 0:
-            # task_master = TaskExecutor(max_workers=len(cnts))
-            task_master = TaskExecutor(max_workers=1)
-
-            for cnt in cnts:        
-                task_master.submit(__task, df=df, cnt=cnt)
+            # check if the located card image matches to a previously detected card
+            if min_diff < threshold:
+                min_card = det_cards_old[det_cards_old['hash_diff'] == min_diff].iloc[0]
+            else:
+                df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
+                min_diff = min(df['hash_diff'])
+                min_card = df[df['hash_diff'] == min_diff].iloc[0]
             
-            det_cards = [ f.result() for f in task_master.futures ]
+            det_cards += [{
+                'cnt': cnt,
+                'name': min_card['name'],
+                'set': min_card['set'],
+                'img_warp': img_warp,
+                'hash_diff': min_diff,
+                'phash': phash_value
+            }]
         
         elapsed_ms = (time.time() - start_time) * 1000
-        print('Elapsed time: %.2f ms' % elapsed_ms)
+        print('Elapsed detection time: %.2f ms' % elapsed_ms)
         return det_cards
 
     task_master = TaskExecutor(max_workers=1)
@@ -185,27 +192,28 @@ def detect_video(capture, display, debug):
 
             img_result = frame.copy()
             if len(task_master.futures) == 0:
-                task_master.submit(_task, img=frame, df=phash_df)
+                task_master.submit(_task, img=frame, det_cards_old=det_cards, df=phash_df)
             elif task_master.futures[0].done():
+                # skip the blocking function `future.result()` if task didn't finish analyzing the image for cards.
+                # this results in a sudo-faster image rendering, and therefore smoother user experience
                 det_cards = task_master.futures.pop().result()
             
-            for (cnt, card_name, _img_warp, _hash_diff) in det_cards:
-                pts = cnt_to_pts(cnt)
-                cv2.drawContours(img_result, [cnt], -1, (255, 0, 0), 7)
-                cv2.putText(img_result, card_name, (min(pts[0][0], pts[1][0]), min(pts[0][1], pts[1][1])),
+            for d in det_cards:
+                pts = cnt_to_pts(d['cnt'])
+                cv2.drawContours(img_result, [d['cnt']], -1, (255, 0, 0), 7)
+                cv2.putText(img_result, d['name'], (min(pts[0][0], pts[1][0]), min(pts[0][1], pts[1][1])),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
             if display:
                 cv2.imshow('result', img_result)
-                key = cv2.waitKey(1) & 0xFF
+                _key = cv2.waitKey(1) & 0xFF
             
             if debug:
                 max_num_obj = max(max_num_obj, len(det_cards))
-                for (i, (cnt, card_name, img_warp, hash_diff)) in enumerate(det_cards):
-                    # img_warp = four_point_transform(frame, pts)
-                    cv2.putText(img_warp, card_name + ', ' + str(hash_diff), (0, 20),
+                for (i, d) in enumerate(det_cards):
+                    cv2.putText(d['img_warp'], d['name'] + ', ' + str(d['hash_diff']), (0, 20),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-                    cv2.imshow(f'Card {i}', img_warp)
+                    cv2.imshow(f'Card {i}', d['img_warp'])
     finally:
         cv2.destroyAllWindows()
 
