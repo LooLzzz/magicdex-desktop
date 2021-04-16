@@ -20,6 +20,11 @@ This project is at it's very beginning, there is so much more to come.
 
 ---
 
+Super early demo:  
+https://www.youtube.com/watch?v=f6lEQFBExMo
+
+---
+
 Made with <3 by [LooLzzz](http://github.com/LooLzzz)
 
 [![LooLzzz](https://avatars0.githubusercontent.com/u/8081213?s=460&u=f00fbdf1d592adfd5995d471a2121a920a0f33bd&v=4)](http://github.com/LooLzzz)
