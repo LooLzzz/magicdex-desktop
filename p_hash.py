@@ -1,5 +1,4 @@
-import pickle, os, cv2
-from imagehash import phash
+import pickle, os, cv2, imagehash
 from PIL import Image
 import pandas as pd
 import numpy as np
@@ -8,8 +7,9 @@ from datetime import date, datetime
 
 import scryfall_client as Scryfall
 import fetch_data as fetch
-from task_executor import TaskExecutor
+import utils
 from utils import Singleton
+from task_executor import TaskExecutor
 from config import Config
 
 class Card:
@@ -73,13 +73,18 @@ class Card:
         Helper function for saving the phash values in a dataframe.\n
         `verbose` will be passed to `Scryfall.fetch_card_img()`
         '''
+
+        b_classes,g_classes,r_classes = utils.get_color_class(self.get_card_image(), eps=0)
         return {
             'id': self.id,
             'name': self.name,
             'set': self.set,
             'collector_number': self.collector_number,
             'img_url': self.img_url,
-            'phash': self.get_phash(flatten_phash=flatten_phash, verbose=verbose)
+            'phash': self.get_phash(flatten_phash=flatten_phash, verbose=verbose),
+            'b_classes': b_classes,
+            'g_classes': g_classes,
+            'r_classes': r_classes,
         }
 
 ################################################################
@@ -93,7 +98,7 @@ class _pHash(metaclass=Singleton):
     #         self.phash_df = self.get_pHash_df()
 
     @staticmethod
-    def img_to_phash(img, grayscale=True, hash_size=32, highfreq_factor=4):
+    def img_to_phash(img, grayscale=True, img_colorspace='BGR', hash_size=32, highfreq_factor=4):
         '''
         Calculate the pHash for `img`, grayscaled.\n
         ---
@@ -105,11 +110,14 @@ class _pHash(metaclass=Singleton):
         
         if grayscale:
             # convert to grayscale
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            if img_colorspace.upper() == 'BGR':
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            elif img_colorspace.upper() == 'RGB':
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         
         # convert to PIL image
         img = Image.fromarray(img)
-        return phash(img, hash_size, highfreq_factor)
+        return imagehash.phash(img, hash_size, highfreq_factor)
 
     @staticmethod
     def calc_pHash_from_df(cards_df, img_type, max_workers, flatten_phash=True, verbose=False):
@@ -136,7 +144,7 @@ class _pHash(metaclass=Singleton):
             cards = [card]
 
             if 'card_faces' in card \
-                and 'image_uris' in card['card_faces'][0]:
+                    and 'image_uris' in card['card_faces'][0]:
                 # in case of double faced cards
                 faces = card['card_faces']
                 cards += [card.copy()]
@@ -167,7 +175,7 @@ class _pHash(metaclass=Singleton):
         # futures = []
         concat_flag = False # a flag for changing tqdm from 'phash pipeline' to 'concating results'
 
-        with tqdm(total=len(cards_df), unit='cards', unit_scale=True, desc='Working on pHash pipeline', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+        with tqdm(total=len(cards_df), unit='card', unit_scale=True, desc='Working on pHash pipeline', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
             for (_i,card) in cards_df.iterrows():
                 # futures += [ task_master.submit(task=_task, save_imgs=True, img_type=img_type, card=card, progress_bar=progress_bar, verbose=verbose) ]
                 task_master.submit(task=_task, save_imgs=True, img_type=img_type, card=card, flatten_phash=flatten_phash, progress_bar=progress_bar, verbose=verbose)
@@ -186,7 +194,7 @@ class _pHash(metaclass=Singleton):
                     progress_bar.refresh()
                     progress_bar.close()
                     # print('')
-                    progress_bar = tqdm(total=tot, unit='cards', unit_scale=True, desc='Concating results', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
+                    progress_bar = tqdm(total=tot, unit='card', unit_scale=True, desc='Concating results', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
                     progress_bar.update(len(phash_df))
                 elif concat_flag:
                     progress_bar.update(1)
@@ -194,6 +202,10 @@ class _pHash(metaclass=Singleton):
             progress_bar.n = progress_bar.total
             progress_bar.refresh()
 
+        # phash_df['collector_number'] = phash_df['collector_number'].astype('int')
+        phash_df['b_classes'] = phash_df['b_classes'].astype('uint8')
+        phash_df['g_classes'] = phash_df['g_classes'].astype('uint8')
+        phash_df['r_classes'] = phash_df['r_classes'].astype('uint8')
         return phash_df.reset_index(drop=True)
 
     def get_pHash_df(self, img_type='border_crop', max_workers=200, flatten_phash=True, verbose=False, update=False):
@@ -242,13 +254,13 @@ class _pHash(metaclass=Singleton):
                             res = _pHash.calc_pHash_from_df(cards_df, img_type, max_workers, flatten_phash, verbose)
                             self.phash_df = pd.concat([self.phash_df, res]).reset_index(drop=True)
 
-                            with open(filename, 'wb') as f_out:
+                            with open(filename, 'wb') as file:
                                 obj = {
                                     'date': date.today().strftime("%Y-%m-%d"),
                                     'data': self.phash_df,
                                     # 'data': phash_df,
                                 }
-                                pickle.dump(obj, f_out)
+                                pickle.dump(obj, file)
                 print(f'\npHash df is up to date')
             return self.phash_df
         else:
@@ -260,16 +272,16 @@ class _pHash(metaclass=Singleton):
         # dump `pHash_df` with an appended date
         print(f"dumping to '{filename}'")
         os.makedirs(subdir, exist_ok=True)
-        with open(filename, 'wb') as f_out:
+        with open(filename, 'wb') as file:
             obj = {
                 'date': date.today().strftime("%Y-%m-%d"),
                 'data': self.phash_df,
                 # 'data': phash_df,
             }
-            pickle.dump(obj, f_out)
+            pickle.dump(obj, file)
         print('done')
 
-        self.phash_df = self.phash_df
+        # self.phash_df = phash_df
         return self.phash_df
 
 pHash = _pHash()

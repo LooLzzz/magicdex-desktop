@@ -5,7 +5,7 @@ import pandas as pd
 # import imagehash as ih
 # from PIL import Image as PILImage
 
-from utils import four_point_transform, resize_with_aspect_ratio, cnt_to_pts
+from utils import four_point_transform, resize_with_aspect_ratio, cnt_to_pts, get_color_class
 from task_executor import TaskExecutor
 from p_hash import pHash
 # from config import Config
@@ -156,6 +156,12 @@ def detect_video(capture, display, debug):
             if min_diff < threshold:
                 min_card = prev_det_cards[prev_det_cards['hash_diff'] == min_diff].iloc[0]
             else:
+                # clr_classes = get_color_class(img, eps=0.4)
+                # df = df[
+                #     df['b_classes'].isin(clr_classes[0]) \
+                #     & df['g_classes'].isin(clr_classes[1]) \
+                #     & df['r_classes'].isin(clr_classes[2])
+                # ]
                 df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
                 min_diff = min(df['hash_diff'])
                 min_card = df[df['hash_diff'] == min_diff].iloc[0]
@@ -192,7 +198,7 @@ def detect_video(capture, display, debug):
 
             img_result = frame.copy()
             if len(task_master.futures) == 0:
-                task_master.submit(_task, img=frame, det_cards_old=det_cards, df=phash_df)
+                task_master.submit(_task, img=frame, prev_det_cards=det_cards, df=phash_df)
             elif task_master.futures[0].done():
                 # skip the blocking function `future.result()` if task didn't finish analyzing the image for cards.
                 # this results in a sudo-faster image rendering, and therefore smoother user experience

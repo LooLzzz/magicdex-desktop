@@ -92,7 +92,7 @@ def use_api(path:str, literal=None, **kwargs):
     res = None
 
     # get cards dataset as json from query
-    with tqdm(total=None, unit='cards', unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+    with tqdm(total=None, unit='card', unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
         while has_more:
             response = requests.get(url)
             response.raise_for_status() # will raise for anything other than 1xx or 2xx

@@ -2,6 +2,7 @@ import requests, cv2, os
 import pandas as pd
 import numpy as np
 import scryfall_client as Scryfall
+from matplotlib import pyplot as plt
 from task_executor import TaskExecutor
 from config import Config
 # from IPython.display import display
@@ -56,6 +57,7 @@ def fetch_card_img(card, to_file=False, verbose=True):
     res = requests.get(img_url, stream=True).raw
     img = np.asarray(bytearray(res.read()), dtype="uint8")
     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+    # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # save it
     if to_file:

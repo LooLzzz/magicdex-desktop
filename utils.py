@@ -1,6 +1,9 @@
 import cv2, math
 import numpy as np
-from colorthief import ColorThief
+from matplotlib import pyplot as plt
+from PIL import Image
+# from colorthief import ColorThief
+import fast_colorthief
 
 # from task_executor import TaskExecutor
 # from p_hash import pHash
@@ -119,28 +122,83 @@ def four_point_transform(image, pts):
     # return the warped image
     return warped
 
-def get_image_color(img, method='mean', colorspace_output='HSV', quality=100):
+def get_image_color(img, method='dominant', colorspace_output='BGR', quality=1):
+    if isinstance(img, str):
+        img = plt.imread(img) # reads as RGB
+
     if method == 'mean':
-        if isinstance(img, str):
-            img = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2RGB)
         a,b,c = cv2.split(img)
         res = [int(a.mean()), int(b.mean()), int(c.mean())]
     elif method == 'dominant':
-        color_thief = ColorThief(img)
-        res = color_thief.get_color(quality)
+        # color_thief = ColorThief(img)
+        # res = color_thief.get_color(quality)
+        if isinstance(img, np.ndarray) and img.shape[2] == 3:
+            # add alpha channel to image array
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
+            # img = Image.fromarray(img)
+            # img = img.convert('RGBA')
+            # img = np.array(img).astype(np.uint8)
+        res = fast_colorthief.get_dominant_color(img, quality)
     else:
         raise ValueError(f'Unknown method `{method}`')
     
     res = np.uint8([[res]])
-    if colorspace_output.upper() == 'LAB':
+    if colorspace_output is None \
+            or colorspace_output.upper() == 'RGB':
+        pass
+    elif colorspace_output.upper() == 'LAB':
         res = cv2.cvtColor(res, cv2.COLOR_RGB2LAB)
     elif colorspace_output.upper() == 'HSV':
         res = cv2.cvtColor(res, cv2.COLOR_RGB2HSV)
-    elif colorspace_output.upper() == 'RGB':
-        #do nothing
-        pass
+    elif colorspace_output.upper() == 'BGR':
+        res = cv2.cvtColor(res, cv2.COLOR_RGB2BGR)
     else:
         raise ValueError(f'Unknown color space `{colorspace_output.upper()}`')
     
     res = list(res[0][0])
     return res
+
+def get_color_class(img=None, color:tuple=None, num_of_classes=4,eps=0.2, method='dominant', colorspace_output='BGR'):
+    '''
+    Converts rgb-color code to a specific color class.
+    Each channel is split into `num_of_classes`, effectively creating `num_of_classes**3` classes.
+
+    The user should pass only one of `img` or `color`.
+    
+    :param img: Can be either a path to the image or an image array.
+    :param color: Should be tuple of the three rgb channels.
+    :param num_of_classes: Number of classes each channel will be divided into.
+    :param eps: Value between 0 to 1, ±epsilon to consider when choosing classes.
+    :return: a 3-tuple of list of classes, each channel can have multiple classes. `([b_classes],[g_classes],[r_classes])`
+    '''
+    # input checks
+    if color is None and img is None :
+        raise ValueError('Both `color` and `img` are None type.')
+    elif color is not None and img is not None:
+        raise ValueError('You must choose only one of `color` and `img`.')
+    if img is not None:
+        color = get_image_color(img, method=method, colorspace_output=colorspace_output)
+    if eps < 0 or eps > 1:
+        raise ValueError('`eps` not in range[0,1]')
+
+    # per channel classes creation
+    step_size = (256//num_of_classes)
+    steps = [ i for i in range(0, 256, step_size) ]
+    ranges = []
+    if steps[-1] < 255:
+        steps += [255]
+    for i in range(1, len(steps)):
+        ranges += [ range(steps[i-1],steps[i]) ]
+
+    eps = int((step_size+1) * eps)
+    cats = [[],[],[]]
+    for channel,val in enumerate(color):
+        for cat,_range in enumerate(ranges):
+            if val in _range:
+                cats[channel] += [ cat ]
+            elif val+eps in _range:
+                cats[channel] += [ cat ]
+            elif val-eps in _range:
+                cats[channel] += [ cat ]
+
+    return cats
