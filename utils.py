@@ -1,5 +1,6 @@
 import cv2, math
 import numpy as np
+from colorthief import ColorThief
 
 # from task_executor import TaskExecutor
 # from p_hash import pHash
@@ -117,3 +118,29 @@ def four_point_transform(image, pts):
 
     # return the warped image
     return warped
+
+def get_image_color(img, method='mean', colorspace_output='HSV', quality=100):
+    if method == 'mean':
+        if isinstance(img, str):
+            img = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2RGB)
+        a,b,c = cv2.split(img)
+        res = [int(a.mean()), int(b.mean()), int(c.mean())]
+    elif method == 'dominant':
+        color_thief = ColorThief(img)
+        res = color_thief.get_color(quality)
+    else:
+        raise ValueError(f'Unknown method `{method}`')
+    
+    res = np.uint8([[res]])
+    if colorspace_output.upper() == 'LAB':
+        res = cv2.cvtColor(res, cv2.COLOR_RGB2LAB)
+    elif colorspace_output.upper() == 'HSV':
+        res = cv2.cvtColor(res, cv2.COLOR_RGB2HSV)
+    elif colorspace_output.upper() == 'RGB':
+        #do nothing
+        pass
+    else:
+        raise ValueError(f'Unknown color space `{colorspace_output.upper()}`')
+    
+    res = list(res[0][0])
+    return res

@@ -136,10 +136,10 @@ def detect_images(imgs, **kwargs):
         cv2.destroyAllWindows()
 
 def detect_video(capture, display, debug):
-    def _task(img, det_cards_old, df, threshold=350):
+    def _task(img, prev_det_cards, df, threshold=350):
         start_time = time.time()
         det_cards = []
-        det_cards_old = pd.DataFrame( [pd.Series(d) for d in det_cards_old] ) # convert the list of dicts to dataframe
+        prev_det_cards = pd.DataFrame( [pd.Series(d) for d in prev_det_cards] ) # convert the list of dicts to dataframe
         cnts = find_rects_in_image(img)
 
         for cnt in cnts:
@@ -148,13 +148,13 @@ def detect_video(capture, display, debug):
             phash_value = pHash.img_to_phash(img_warp).hash.flatten()
             min_diff = threshold+1
 
-            if len(det_cards_old) > 0:
-                det_cards_old['hash_diff'] = det_cards_old['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
-                min_diff = min(det_cards_old['hash_diff'])
+            if len(prev_det_cards) > 0:
+                prev_det_cards['hash_diff'] = prev_det_cards['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
+                min_diff = min(prev_det_cards['hash_diff'])
             
             # check if the located card image matches to a previously detected card
             if min_diff < threshold:
-                min_card = det_cards_old[det_cards_old['hash_diff'] == min_diff].iloc[0]
+                min_card = prev_det_cards[prev_det_cards['hash_diff'] == min_diff].iloc[0]
             else:
                 df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
                 min_diff = min(df['hash_diff'])
@@ -206,7 +206,8 @@ def detect_video(capture, display, debug):
 
             if display:
                 cv2.imshow('result', img_result)
-                _key = cv2.waitKey(1) & 0xFF
+                cv2.waitKey(1) & 0xFF
+                # _key = cv2.waitKey(1) & 0xFF
             
             if debug:
                 max_num_obj = max(max_num_obj, len(det_cards))
