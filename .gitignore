@@ -6,6 +6,8 @@ data/**/images/*
 data/**/*dtd*
 __pycache__
 
+fast-colorthief-install
+
 ## large files
 all_cards*
 all_sets*
