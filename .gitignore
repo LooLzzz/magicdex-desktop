@@ -1,4 +1,5 @@
 .env
+dotenv
 .vscode
 *tmp*
 data/**/images/*
