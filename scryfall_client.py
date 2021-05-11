@@ -4,7 +4,8 @@ https://api.scryfall.com
 '''
 
 from functools import reduce
-import re, requests, os, json #, math, wget, ast
+import re, requests, os, json
+import sys #, math, wget, ast
 import pandas as pd
 from tqdm import tqdm
 # import numpy as np
@@ -92,7 +93,7 @@ def use_api(path:str, literal=None, **kwargs):
     res = None
 
     # get cards dataset as json from query
-    with tqdm(total=None, unit='card', unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+    with tqdm(total=None, file=sys.stdout, unit='card', ascii=False, unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
         while has_more:
             response = requests.get(url)
             response.raise_for_status() # will raise for anything other than 1xx or 2xx
@@ -170,7 +171,7 @@ def get_bulk_data(bulk_type='default_cards', to_file=False, subdir=None, filenam
     res = requests.get(download_uri, stream=True)
     frame = bytearray()
     chunk_size = 2**10 #1024
-    with tqdm(unit='B', unit_divisor=chunk_size, leave=True, unit_scale=True, total=download_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+    with tqdm(unit='B', file=sys.stdout, unit_divisor=chunk_size, ascii=False, leave=True, unit_scale=True, total=download_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
         progress_bar.leave = True
         for chunk in res.iter_content(chunk_size):
             frame.extend(chunk)

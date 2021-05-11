@@ -1,4 +1,5 @@
 import pickle, os, cv2, imagehash
+import sys
 from PIL import Image
 import pandas as pd
 import numpy as np
@@ -175,7 +176,7 @@ class _pHash(metaclass=Singleton):
         # futures = []
         concat_flag = False # a flag for changing tqdm from 'phash pipeline' to 'concating results'
 
-        with tqdm(total=len(cards_df), unit='card', unit_scale=True, desc='Working on pHash pipeline', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+        with tqdm(total=len(cards_df), file=sys.stdout, ascii=False, unit='card', unit_scale=True, desc='Working on pHash pipeline', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
             for (_i,card) in cards_df.iterrows():
                 # futures += [ task_master.submit(task=_task, save_imgs=True, img_type=img_type, card=card, progress_bar=progress_bar, verbose=verbose) ]
                 task_master.submit(task=_task, save_imgs=True, img_type=img_type, card=card, flatten_phash=flatten_phash, progress_bar=progress_bar, verbose=verbose)
@@ -193,8 +194,8 @@ class _pHash(metaclass=Singleton):
                     progress_bar.n = tot
                     progress_bar.refresh()
                     progress_bar.close()
-                    # print('')
-                    progress_bar = tqdm(total=tot, unit='card', unit_scale=True, desc='Concating results', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
+                    # print('')`1`
+                    progress_bar = tqdm(total=tot, file=sys.stdout, ascii=False, unit='card', unit_scale=True, desc='Concating results', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
                     progress_bar.update(len(phash_df))
                 elif concat_flag:
                     progress_bar.update(1)
@@ -203,9 +204,9 @@ class _pHash(metaclass=Singleton):
             progress_bar.refresh()
 
         # phash_df['collector_number'] = phash_df['collector_number'].astype('int')
-        phash_df['b_classes'] = phash_df['b_classes'].astype('uint8')
-        phash_df['g_classes'] = phash_df['g_classes'].astype('uint8')
-        phash_df['r_classes'] = phash_df['r_classes'].astype('uint8')
+        # phash_df['b_classes'] = phash_df['b_classes'].astype('uint8')
+        # phash_df['g_classes'] = phash_df['g_classes'].astype('uint8')
+        # phash_df['r_classes'] = phash_df['r_classes'].astype('uint8')
         return phash_df.reset_index(drop=True)
 
     def get_pHash_df(self, img_type='border_crop', max_workers=200, flatten_phash=True, verbose=False, update=False):
@@ -217,10 +218,11 @@ class _pHash(metaclass=Singleton):
         `verbose` will be passed to `Scryfall.fetch_card_img()`
         '''
 
-        try:
-            return self.phash_df
-        except (NameError, AttributeError):
-            pass
+        if update == False:
+            try:
+                return self.phash_df
+            except (NameError, AttributeError):
+                pass
 
         self.phash_df = None
         subdir = f'{Config.cards_path}/pHash'
@@ -245,23 +247,23 @@ class _pHash(metaclass=Singleton):
                     cards_df = cards_df.loc[ map(lambda x: x not in self.phash_df['id'].to_list(), cards_df['id'].to_list()) ] # remove cards already in phash_df, keep only new cards
                     
                     if len(cards_df) > 0:
-                        update_flag = input(f'There are {len(cards_df)} new cards, would you like to update phash_df? (Y/N): ').lower()
-                        while update_flag!='y' and update_flag!='n':
-                            update_flag = input().lower()
+                        # update_flag = input(f'There are {len(cards_df)} new cards, would you like to update phash_df? (Y/N): ').lower()
+                        # while update_flag!='y' and update_flag!='n':
+                        #     update_flag = input().lower()
                         
-                        if update_flag == 'y':
-                            print(f'\nupdating pHash for {len(cards_df)} cards')
-                            res = _pHash.calc_pHash_from_df(cards_df, img_type, max_workers, flatten_phash, verbose)
-                            self.phash_df = pd.concat([self.phash_df, res]).reset_index(drop=True)
+                        # if update_flag == 'y':
+                        print(f'\nupdating pHash for {len(cards_df)} cards')
+                        res = _pHash.calc_pHash_from_df(cards_df, img_type, max_workers, flatten_phash, verbose)
+                        self.phash_df = pd.concat([self.phash_df, res]).reset_index(drop=True)
 
-                            with open(filename, 'wb') as file:
-                                obj = {
-                                    'date': date.today().strftime("%Y-%m-%d"),
-                                    'data': self.phash_df,
-                                    # 'data': phash_df,
-                                }
-                                pickle.dump(obj, file)
-                print(f'\npHash df is up to date')
+                        with open(filename, 'wb') as file:
+                            obj = {
+                                'date': date.today().strftime("%Y-%m-%d"),
+                                'data': self.phash_df,
+                                # 'data': phash_df,
+                            }
+                            pickle.dump(obj, file)
+                    print(f'\npHash df is up to date')
             return self.phash_df
         else:
             # create a new dataframe and calculate the pHashes

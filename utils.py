@@ -1,7 +1,7 @@
 import cv2, math
 import numpy as np
 from matplotlib import pyplot as plt
-from PIL import Image
+# from PIL import Image
 # from colorthief import ColorThief
 import fast_colorthief
 
@@ -122,7 +122,7 @@ def four_point_transform(image, pts):
     # return the warped image
     return warped
 
-def get_image_color(img, method='dominant', colorspace_output='BGR', quality=1):
+def get_image_color(img, method='dominant', colorspace_output='BGR', quality=1, normalize_hsv=True):
     if isinstance(img, str):
         img = plt.imread(img) # reads as RGB
 
@@ -133,11 +133,15 @@ def get_image_color(img, method='dominant', colorspace_output='BGR', quality=1):
         # color_thief = ColorThief(img)
         # res = color_thief.get_color(quality)
         if isinstance(img, np.ndarray) and img.shape[2] == 3:
-            # add alpha channel to image array
+            if normalize_hsv:
+                # normalize brightness value
+                img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                img_hsv[:,:,2] = cv2.equalizeHist(img_hsv[:,:,2])
+                img = cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR)
+            
+            # add alpha channel to the image array
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
-            # img = Image.fromarray(img)
-            # img = img.convert('RGBA')
-            # img = np.array(img).astype(np.uint8)
+
         res = fast_colorthief.get_dominant_color(img, quality)
     else:
         raise ValueError(f'Unknown method `{method}`')
@@ -158,7 +162,7 @@ def get_image_color(img, method='dominant', colorspace_output='BGR', quality=1):
     res = list(res[0][0])
     return res
 
-def get_color_class(img=None, color:tuple=None, num_of_classes=4,eps=0.2, method='dominant', colorspace_output='BGR'):
+def get_color_class(img=None, color:tuple=None, num_of_classes=4, eps=0.2, **kwargs): #method='dominant', colorspace_output='BGR', normalize_hsv):
     '''
     Converts rgb-color code to a specific color class.
     Each channel is split into `num_of_classes`, effectively creating `num_of_classes**3` classes.
@@ -177,7 +181,7 @@ def get_color_class(img=None, color:tuple=None, num_of_classes=4,eps=0.2, method
     elif color is not None and img is not None:
         raise ValueError('You must choose only one of `color` and `img`.')
     if img is not None:
-        color = get_image_color(img, method=method, colorspace_output=colorspace_output)
+        color = get_image_color(img, **kwargs) #method=method, colorspace_output=colorspace_output)
     if eps < 0 or eps > 1:
         raise ValueError('`eps` not in range[0,1]')
 

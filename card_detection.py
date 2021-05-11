@@ -135,8 +135,8 @@ def detect_images(imgs, **kwargs):
         detect_image(img, phash_df, **kwargs)
         cv2.destroyAllWindows()
 
-def detect_video(capture, display, debug):
-    def _task(img, prev_det_cards, df, threshold=350):
+def detect_video(capture, display, debug, filtering, callback=None):
+    def _task(img, prev_det_cards, df, debug, threshold=350, filtering=False):
         start_time = time.time()
         det_cards = []
         prev_det_cards = pd.DataFrame( [pd.Series(d) for d in prev_det_cards] ) # convert the list of dicts to dataframe
@@ -156,15 +156,18 @@ def detect_video(capture, display, debug):
             if min_diff < threshold:
                 min_card = prev_det_cards[prev_det_cards['hash_diff'] == min_diff].iloc[0]
             else:
-                # clr_classes = get_color_class(img, eps=0.4)
-                # df = df[
-                #     df['b_classes'].isin(clr_classes[0]) \
-                #     & df['g_classes'].isin(clr_classes[1]) \
-                #     & df['r_classes'].isin(clr_classes[2])
-                # ]
-                df['hash_diff'] = df['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
-                min_diff = min(df['hash_diff'])
-                min_card = df[df['hash_diff'] == min_diff].iloc[0]
+                if filtering:
+                    clr_classes = get_color_class(img_warp, eps=0.2, normalize_hsv=True)
+                    df_filtered = df[
+                        df['b_classes'].isin(clr_classes[0]) \
+                        & df['g_classes'].isin(clr_classes[1]) \
+                        & df['r_classes'].isin(clr_classes[2])
+                    ].copy()
+                else:
+                    df_filtered = df
+                df_filtered['hash_diff'] = df_filtered['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
+                min_diff = min(df_filtered['hash_diff'])
+                min_card = df_filtered[df_filtered['hash_diff'] == min_diff].iloc[0]
             
             det_cards += [{
                 'cnt': cnt,
@@ -176,7 +179,8 @@ def detect_video(capture, display, debug):
             }]
         
         elapsed_ms = (time.time() - start_time) * 1000
-        print('Elapsed detection time: %.2f ms' % elapsed_ms)
+        if debug:
+            print('Elapsed detection time: %.2f ms' % elapsed_ms)
         return det_cards
 
     task_master = TaskExecutor(max_workers=1)
@@ -198,7 +202,7 @@ def detect_video(capture, display, debug):
 
             img_result = frame.copy()
             if len(task_master.futures) == 0:
-                task_master.submit(_task, img=frame, prev_det_cards=det_cards, df=phash_df)
+                task_master.submit(_task, img=frame, prev_det_cards=det_cards, df=phash_df, debug=debug, filtering=filtering)
             elif task_master.futures[0].done():
                 # skip the blocking function `future.result()` if task didn't finish analyzing the image for cards.
                 # this results in a sudo-faster image rendering, and therefore smoother user experience
@@ -211,9 +215,12 @@ def detect_video(capture, display, debug):
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
             if display:
-                cv2.imshow('result', img_result)
-                cv2.waitKey(1) & 0xFF
-                # _key = cv2.waitKey(1) & 0xFF
+                cv2.imshow(f'result', img_result)
+                cv2.setWindowTitle(f'result', f'result {{filtering={filtering}}}')
+                # cv2.waitKey(1) & 0xFF
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('f') or key == ord('F'):
+                    filtering = not filtering
             
             if debug:
                 max_num_obj = max(max_num_obj, len(det_cards))
@@ -221,6 +228,9 @@ def detect_video(capture, display, debug):
                     cv2.putText(d['img_warp'], d['name'] + ', ' + str(d['hash_diff']), (0, 20),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                     cv2.imshow(f'Card {i}', d['img_warp'])
+            
+            if callback is not None:
+                callback(det_cards=det_cards, img_result=img_result)
     finally:
         cv2.destroyAllWindows()
 
@@ -232,5 +242,5 @@ if __name__ == '__main__':
     # detect_images(imgs, debug=True)
 
     capture = cv2.VideoCapture(0)
-    detect_video(capture, display=True, debug=True)
+    detect_video(capture, display=True, debug=True, filtering=False)
     capture.release()

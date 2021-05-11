@@ -1,10 +1,13 @@
 .env
+dotenv
 .vscode
 *tmp*
 data/**/images/*
 # data/**/*.jpg
 data/**/*dtd*
 __pycache__
+
+fast-colorthief*
 
 ## large files
 all_cards*

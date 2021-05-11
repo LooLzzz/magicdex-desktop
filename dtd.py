@@ -1,4 +1,5 @@
 import os, random, requests, cv2, tarfile
+import sys
 from tqdm import tqdm
 # from glob import glob
 # import matplotlib.pyplot as plt
@@ -59,7 +60,7 @@ class _Backgrounds(metaclass=Singleton):
             # file_count += len(files)
         
         # # Search the directory for all images, and append them to a single list
-        # with tqdm(unit='file', unit_scale=True, total=file_count, desc='Loading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+        # with tqdm(unit='file', file=sys.stdout, ascii=False,  unit_scale=True, total=file_count, desc='Loading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
         #     for subdir in glob(self._dtd_path + "/images/*"):
         #         for f in glob(subdir + "/*.jpg"):
         #             self._images.append(cv2.imread(f))
@@ -84,7 +85,7 @@ class _Backgrounds(metaclass=Singleton):
 
         # download the archive
         if not os.path.exists(arcive_path):
-            with tqdm(unit='B', unit_divisor=chunk_size, unit_scale=True, total=file_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+            with tqdm(unit='B', file=sys.stdout, ascii=False, unit_divisor=chunk_size, unit_scale=True, total=file_size, desc='Downloading', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
                 with open(arcive_path, 'wb') as file:
                     for chunk in response.iter_content(chunk_size):
                         if chunk: # filter out keep-alive chunks
@@ -93,7 +94,7 @@ class _Backgrounds(metaclass=Singleton):
 
         # print('Unpacking file..')
         with tarfile.open(arcive_path) as archive_file:
-             for file in tqdm(archive_file.getmembers(), unit='file', unit_scale=True, total=len(archive_file.getmembers()), desc='Unpacking', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}'):
+             for file in tqdm(archive_file.getmembers(), file=sys.stdout, ascii=False, unit='file', unit_scale=True, total=len(archive_file.getmembers()), desc='Unpacking', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}'):
                 # Extract each file to another directory
                 archive_file.extract(file, Config.data_path)
         os.remove(arcive_path)
