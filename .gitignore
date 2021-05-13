@@ -1,10 +1,11 @@
+.venv
 .env
 dotenv
 .vscode
 *tmp*
-data/**/images/*
+data/**/images/**
 # data/**/*.jpg
-data/**/*dtd*
+data/**/dtd/**
 __pycache__
 
 fast-colorthief-install
