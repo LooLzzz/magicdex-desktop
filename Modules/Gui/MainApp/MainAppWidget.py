@@ -4,13 +4,14 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-from ..BaseWidgets import MyStackedWidget
+from ..BaseWidgets import MyStackedWidget, MyQWidget
 from .Pages import *
 
 class MainAppWidget(MyStackedWidget):
     def __init__(self, parent, root_window:QMainWindow):
         super().__init__(parent, root_window)
         
+        # creates `self.pageStack:list` internally
         self.initPageStack([
             ('mainMenu', MainMenu),
             ('pHash', pHashWidget),
@@ -18,13 +19,7 @@ class MainAppWidget(MyStackedWidget):
             ('stagingArea', StagingAreaWidget),
         ])
 
-        layout = QHBoxLayout(self)
-        self.setLayout(layout)
-
-        lbl = QLabel(text='main', parent=self)
-        layout.addWidget(lbl)
         self._createMenuBar()
-
         self.showPage('mainMenu')
 
     def _createMenuBar(self):
@@ -37,7 +32,7 @@ class MainAppWidget(MyStackedWidget):
         fileMenu.addAction('Card Detector', lambda: self.showPage('cardDetector'))
         fileMenu.addAction('pHash DataFrame', lambda: self.showPage('pHash'))
         
-        editMenu.addAction('Update pHash', lambda: print('TBD')) #TODO implement `update_pHash()` method
+        editMenu.addAction('Update pHash', lambda: self.getPage('pHash').load_phash(True))
         editMenu.addAction('Staging Area', lambda: self.showPage('stagingArea'))
 
         exitAction = QAction('Exit', self)

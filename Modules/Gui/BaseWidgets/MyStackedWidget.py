@@ -19,7 +19,7 @@ class MyStackedWidget(QStackedWidget):
             _pageWidget = _pageClass(parent=self, root_window=self.root_window)
             self.pageStack += [ (_pageName, _pageWidget) ]
             self.addWidget(_pageWidget)
-        self.setCurrentIndex(0)
+        # self.setCurrentIndex(0)
 
     def showPage(self, pageName):
         # self.prevIndex = self.currentIndex()
@@ -27,6 +27,11 @@ class MyStackedWidget(QStackedWidget):
             if _pageName == pageName:
                 self.setCurrentIndex(i)
                 break
+
+    def getPage(self, pageName):
+        for (_pageName,_pageWidget) in self.pageStack:
+            if _pageName == pageName:
+                return _pageWidget
 
     def onPageChange(self, i):        
         _,prevPage = self.pageStack[self.prevIndex]

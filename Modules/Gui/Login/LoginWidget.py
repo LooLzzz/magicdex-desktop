@@ -116,6 +116,6 @@ class LoginWidget(MyQWidget):
 
     def startMainAppWidget(self):
         mainWidget = MainAppWidget(self.root_window, self.root_window)
-        self.root_window.setWindowFlags(Qt.Window)
         self.root_window.setCentralWidget(mainWidget)
+        self.root_window.setWindowFlags(Qt.Window)
         self.root_window.show()
