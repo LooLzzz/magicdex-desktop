@@ -1,2 +1,2 @@
 from .MyQWidget import MyQWidget
-from .MyStackedWidget import MyStackedWidget
+from .MyStackedQWidget import MyStackedQWidget

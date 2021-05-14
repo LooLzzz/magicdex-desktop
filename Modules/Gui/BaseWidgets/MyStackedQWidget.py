@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import *
 
 from . import MyQWidget
 
-class MyStackedWidget(QStackedWidget):
+class MyStackedQWidget(QStackedWidget):
     def __init__(self, parent, root_window, pageStack:MyQWidget=None):
         super().__init__(parent=parent)
         self.prevIndex = -1
@@ -41,3 +41,9 @@ class MyStackedWidget(QStackedWidget):
         currPage.onShow()
         
         self.prevIndex = self.currentIndex()
+    
+    def onShow(self):
+        pass
+
+    def onHide(self):
+        pass

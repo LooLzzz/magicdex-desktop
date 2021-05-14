@@ -2,10 +2,11 @@ import cv2, time
 import numpy as np
 import pandas as pd
 
-from .utils import four_point_transform, resize_with_aspect_ratio, cnt_to_pts, get_color_class
+# from Modules.utils import four_point_transform, resize_with_aspect_ratio, cnt_to_pts, get_color_class
 from .task_executor import TaskExecutor
 from .p_hash import pHash
-# from config import Config
+from . import utils
+from config import Config
 
 # os.environ['MODIN_ENGINE'] = 'dask'  # Modin will use Dask
 
@@ -77,8 +78,8 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
     cnts = find_rects_in_image(img_result, size_thresh=size_thresh)
     for (i,cnt) in enumerate(cnts):
         # For the region of the image covered by the contour, transform them into a rectangular image
-        pts = cnt_to_pts(cnt)
-        img_warp = four_point_transform(img, pts)
+        pts = utils.cnt_to_pts(cnt)
+        img_warp = utils.four_point_transform(img, pts)
 
         # To identify the card from the card image, perceptual hashing (pHash) algorithm is used
         # Perceptual hash is a hash string built from features of the input medium. If two media are similar
@@ -114,7 +115,7 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             cv2.imshow(f'Card {i}', img_warp)
     if display:
-        cv2.imshow('Result', resize_with_aspect_ratio(img_result, height=800))
+        cv2.imshow('Result', utils.resize_with_aspect_ratio(img_result, height=800))
         cv2.waitKey(0)
 
     return (
@@ -133,15 +134,15 @@ def detect_images(imgs, **kwargs):
         cv2.destroyAllWindows()
 
 def detect_video(capture, display=False, debug=False, filtering=False, callback=None):
-    def _task(img, prev_det_cards, df, filtering, threshold=350):
+    def _task(img, prev_det_cards, df, filtering, debug, threshold=350):
         start_time = time.time()
         det_cards = []
         prev_det_cards = pd.DataFrame( [pd.Series(d) for d in prev_det_cards] ) # convert the list of dicts to dataframe
         cnts = find_rects_in_image(img)
 
         for cnt in cnts:
-            pts = cnt_to_pts(cnt)
-            img_warp = four_point_transform(img, pts)
+            pts = utils.cnt_to_pts(cnt)
+            img_warp = utils.four_point_transform(img, pts)
             phash_value = pHash.img_to_phash(img_warp).hash.flatten()
             min_diff = threshold+1
 
@@ -154,7 +155,7 @@ def detect_video(capture, display=False, debug=False, filtering=False, callback=
                 min_card = prev_det_cards[prev_det_cards['hash_diff'] == min_diff].iloc[0]
             else:
                 if filtering:
-                    clr_classes = get_color_class(img_warp, eps=0.2, normalize_hsv=True)
+                    clr_classes = utils.get_color_class(img_warp, eps=0.2, normalize_hsv=True)
                     df_filtered = df[
                         df['b_classes'].isin(clr_classes[0]) \
                         & df['g_classes'].isin(clr_classes[1]) \
@@ -176,7 +177,8 @@ def detect_video(capture, display=False, debug=False, filtering=False, callback=
             }]
         
         elapsed_ms = (time.time() - start_time) * 1000
-        print('Elapsed detection time: %.2f ms' % elapsed_ms)
+        if debug:
+            print('Elapsed detection time: %.2f ms' % elapsed_ms)
         return det_cards
 
     task_master = TaskExecutor(max_workers=1)
@@ -198,17 +200,21 @@ def detect_video(capture, display=False, debug=False, filtering=False, callback=
 
             img_result = frame.copy()
             if len(task_master.futures) == 0:
-                task_master.submit(_task, img=frame, prev_det_cards=det_cards, df=phash_df, filtering=filtering)
+                task_master.submit(_task, img=frame, prev_det_cards=det_cards, df=phash_df, filtering=filtering, debug=debug)
             elif task_master.futures[0].done():
                 # skip the blocking function `future.result()` if task didn't finish analyzing the image for cards.
                 # this results in a sudo-faster image rendering, and therefore smoother user experience
                 det_cards = task_master.futures.pop().result()
             
+            FILL_COLOR = (60, 120, 170)[::-1] # as BGR
             for d in det_cards:
-                pts = cnt_to_pts(d['cnt'])
-                cv2.drawContours(img_result, [d['cnt']], -1, (255, 0, 0), 7)
+                pts = utils.cnt_to_pts(d['cnt'])
+                rect_image = np.zeros_like(img_result)
+                
+                cv2.drawContours(rect_image, [d['cnt']], -1, FILL_COLOR, -1, cv2.LINE_AA)
                 cv2.putText(img_result, d['name'], (min(pts[0][0], pts[1][0]), min(pts[0][1], pts[1][1])),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200,200,200), 2)
+                img_result = cv2.addWeighted(img_result, 1, rect_image, 0.75, 0)
 
             if display:
                 cv2.imshow(f'result', img_result)

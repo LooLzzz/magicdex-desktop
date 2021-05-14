@@ -4,10 +4,10 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-from ..BaseWidgets import MyStackedWidget, MyQWidget
+from ..BaseWidgets import MyStackedQWidget, MyQWidget
 from .Pages import *
 
-class MainAppWidget(MyStackedWidget):
+class MainAppWidget(MyStackedQWidget):
     def __init__(self, parent, root_window:QMainWindow):
         super().__init__(parent, root_window)
         
@@ -15,7 +15,7 @@ class MainAppWidget(MyStackedWidget):
         self.initPageStack([
             ('mainMenu', MainMenu),
             ('pHash', pHashWidget),
-            ('cardDetector', CardDetectorWidget),
+            ('cardDetection', CardDetectionWidget),
             ('stagingArea', StagingAreaWidget),
         ])
 
@@ -29,7 +29,7 @@ class MainAppWidget(MyStackedWidget):
         helpMenu = menuBar.addMenu('&Help')
         
         fileMenu.addAction('Main Menu', lambda: self.showPage('mainMenu'))
-        fileMenu.addAction('Card Detector', lambda: self.showPage('cardDetector'))
+        fileMenu.addAction('Card Detection', lambda: self.showPage('cardDetection'))
         fileMenu.addAction('pHash DataFrame', lambda: self.showPage('pHash'))
         
         editMenu.addAction('Update pHash', lambda: self.getPage('pHash').load_phash(True))
@@ -37,7 +37,7 @@ class MainAppWidget(MyStackedWidget):
 
         exitAction = QAction('Exit', self)
         exitAction.setShortcut('Ctrl+W')
-        exitAction.triggered.connect(self.root_window.closeEvent)
+        exitAction.triggered.connect(self.root_window.close)
         fileMenu.addAction(exitAction)
 
         helpMenu.addAction('Show Console', self.root_window.console_window.show)

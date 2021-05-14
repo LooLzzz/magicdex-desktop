@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 # from colorthief import ColorThief
 # import fast_colorthief
 
+# from Modules import *
 # from task_executor import TaskExecutor
 # from p_hash import pHash
 # from config import Config

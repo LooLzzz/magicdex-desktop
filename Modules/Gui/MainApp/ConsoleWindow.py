@@ -3,6 +3,8 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 
+MAX_LINE_COUNT = 100
+
 class ConsoleWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -15,6 +17,7 @@ class ConsoleWindow(QMainWindow):
         self.text_box.setStyleSheet('background-color:#e1e1e1')
         self.text_box.setFont(QFont('consolas', 11))
         self.text_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.text_box.document().setMaximumBlockCount(MAX_LINE_COUNT)
 
         widget = QWidget()
         vbox = QVBoxLayout()
@@ -67,6 +70,13 @@ class ConsoleWindow(QMainWindow):
             self.text_box.setTextColor(QColor(color))
             self.text_box.insertPlainText(m)
             # self.text_box.append(m)
+        
+        # lineCount = self.text_box.document().lineCount()
+        # if lineCount > MAX_LINE_COUNT:
+        #     self.text_box.moveCursor(QTextCursor.Start)
+        #     cursor = self.text_box.textCursor()
+        #     cursor.select(QTextCursor.LineUnderCursor)
+        #     cursor.removeSelectedText()
         
         self.text_box.verticalScrollBar().setValue(self.text_box.verticalScrollBar().maximum()) # scroll to bottom
 

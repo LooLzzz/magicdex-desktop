@@ -6,10 +6,10 @@ from tqdm import tqdm
 from datetime import date, datetime
 
 from config import Config
-from .Scryfall import scryfall_client as Scryfall
-from .Scryfall import fetch_data as fetch
-from .utils import Singleton, get_color_class
+from .ScryfallApi import scryfall_client as Scryfall
+from .ScryfallApi import fetch_data as fetch
 from .task_executor import TaskExecutor
+from . import utils
 
 class Card:
     '''
@@ -73,7 +73,7 @@ class Card:
         `verbose` will be passed to `Scryfall.fetch_card_img()`
         '''
 
-        b_classes,g_classes,r_classes = get_color_class(self.get_card_image(), eps=0)
+        b_classes,g_classes,r_classes = utils.get_color_class(self.get_card_image(), eps=0)
         return {
             'id': self.id,
             'name': self.name,
@@ -89,7 +89,7 @@ class Card:
 ################################################################
 ################################################################
 
-class _pHash(metaclass=Singleton):
+class _pHash(metaclass=utils.Singleton):
     # def __init__(self):
     #     try:
     #         self.phash_df
@@ -216,10 +216,8 @@ class _pHash(metaclass=Singleton):
         `verbose` will be passed to `Scryfall.fetch_card_img()`
         '''
 
-        try:
+        if not update and hasattr(self, 'phash_df'):
             return self.phash_df
-        except (NameError, AttributeError):
-            pass
 
         self.phash_df = None
         subdir = f'{Config.cards_path}/pHash'
@@ -276,9 +274,9 @@ class _pHash(metaclass=Singleton):
                 
                 if up_to_date_flag:
                     if len(cards_df) == 0:
-                        print(f'\nNo new cards are available, pHash df is up to date with {len(self.phash_df)} entries')
+                        print(f'No new cards are available, pHash df is up to date with {len(self.phash_df)} entries')
                     else:
-                        print(f'\npHash df is up to date with {len(self.phash_df)} entries')
+                        print(f'pHash df is up to date with {len(self.phash_df)} entries')
             
             return self.phash_df
         else:

@@ -1,6 +1,5 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
-
 class TaskExecutor(ThreadPoolExecutor):
     '''
     A class for executing multi-threaded tasks.

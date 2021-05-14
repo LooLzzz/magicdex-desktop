@@ -2,7 +2,8 @@ import sys
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import QApplication
 
-from Modules import RootWindow
+from Modules.Gui import RootWindow
+# from Modules.BusinessLogic import *
 
 load_dotenv('dotenv')
 
