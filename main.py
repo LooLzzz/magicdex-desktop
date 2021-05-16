@@ -1,4 +1,4 @@
-import sys
+import sys, traceback
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import QApplication
 
@@ -11,7 +11,8 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = RootWindow()
     ex.show()
-    sys.exit(app.exec_())
+    ret_val = app.exec_()
+    sys.exit()
 
     # phash_df = pHash.get_pHash_df(update=False)
     # phash_df = pHash.get_pHash_df(update=True)

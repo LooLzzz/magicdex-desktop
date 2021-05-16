@@ -1,12 +1,12 @@
 import cv2
 import pandas as pd
-import numpy as np
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 from config import Config
-from ...BaseWidgets import MyQWidget
+from ...BaseWidgets import *
+from Modules.BusinessLogic.ScryfallApi import fetch_data as fetch
 from Modules.BusinessLogic import card_detection as CardDetection
 from Modules.Gui.QWorkerThread import QWorkerThread
 from Modules.Gui.PandasModel import PandasModel
@@ -40,26 +40,20 @@ class CardDetectionWidget(MyQWidget):
         vbox_main.addLayout(hbox_lower)
         hbox_lower.addLayout(vbox_lower)
 
-        self.searchbox = QTextEdit()
-        self.searchbox.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.searchbox.setLineWrapMode(QTextEdit.NoWrap)
-        self.searchbox.setFixedHeight(25)
-        self.searchbox.textChanged.connect(self.searchboxTextChanged)
+        # self.searchbox = QLineEdit()
+        self.searchbox = ScryfallSearchbox()
+        self.searchbox.submit.connect(self.searchboxSubmitted)
         vbox_lower.addWidget(self.searchbox, alignment=Qt.AlignBottom)
         
-        self.model = PandasModel(df=pd.DataFrame(columns=['name','set','amount','foil']))
-        self.tableView = QTableView()
-        self.tableView.setSortingEnabled(True)
-        self.tableView.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) 
-        self.tableView.setShowGrid(False) 
-        self.tableView.setSelectionBehavior(QTableView.SelectRows)
-        self.tableView.setAlternatingRowColors(True)
-        self.tableView.setModel(self.model)
+        self.model = PandasModel(df=pd.DataFrame(columns=['Name','Set','Amount','Foil']))
+        self.tableView = MyQTableView(parent=self, model=self.model)
+        self.tableView.hoverIndexChanged.connect(self.onHoverIndexChanged)
         vbox_lower.addWidget(self.tableView, alignment=Qt.AlignBottom)
 
         self.card_image_label = QLabel()
         self.card_image_label.setFixedSize(200, 280)
-        self.cardback_pixmap = QPixmap(f'{Config.cards_path}/cardback.jpg', flags=Qt.AvoidDither).scaledToWidth(200)
+        self.cardback_pixmap = QPixmap(f'{Config.cards_path}/cardback.jpg', flags=Qt.AvoidDither)\
+                .scaledToWidth(self.card_image_label.width(), Qt.SmoothTransformation)
         self.card_image_label.setPixmap(self.cardback_pixmap)
         hbox_lower.addWidget(self.card_image_label, alignment=Qt.AlignRight|Qt.AlignBottom)
     
@@ -70,7 +64,23 @@ class CardDetectionWidget(MyQWidget):
     def onHide(self):
         self.stopCamera()
 
-    def searchboxTextChanged(self):
+    def setCardImageLabel(self, card):
+        img = fetch.fetch_card_img(card, verbose=False)
+        pix = QPixmap(QImage(
+            img,
+            img.shape[1],
+            img.shape[0],
+            img.shape[1]*img.shape[2],
+            QImage.Format.Format_RGB888
+        ).rgbSwapped()).scaledToWidth(self.card_image_label.width(), Qt.SmoothTransformation)
+        self.card_image_label.setPixmap(pix)
+
+    def searchboxSubmitted(self, value):
+        print(f'got result from searchbox: {value["name"]}')
+        self.setCardImageLabel(value)
+        self.searchbox.clear()
+        
+    def onHoverIndexChanged(self, modelIndex:QModelIndex):
         pass
 
     def openCamera(self):
@@ -78,7 +88,7 @@ class CardDetectionWidget(MyQWidget):
             print('Video capture is already running.')
             return
         
-        self.capture = cv2.VideoCapture(0)        
+        self.capture = cv2.VideoCapture(0)
         if not self.capture.isOpened():
             print('Failed to open camera.')
         

@@ -22,6 +22,12 @@ def load_all(df_type:str, to_file=True, *args, **kwargs):
         df = Scryfall.get_bulk_data(bulk_type, to_file=to_file, filename=f'all_{df_type}')
     return df
 
+def fetch_card_img_from_url(img_url):
+    res = requests.get(img_url, stream=True).raw
+    img = np.asarray(bytearray(res.read()), dtype="uint8")
+    img = cv2.imdecode(img, cv2.IMREAD_UNCHANGED)
+    return img
+
 def fetch_card_img(card, to_file=False, verbose=True):
     '''
     `card` should have the following properties: {`set`, `name`, (`collector_number` or `number`), (`image_uris` or `img_url`)}
@@ -58,6 +64,7 @@ def fetch_card_img(card, to_file=False, verbose=True):
     res = requests.get(img_url, stream=True).raw
     img = np.asarray(bytearray(res.read()), dtype="uint8")
     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+    # img = cv2.imdecode(img, cv2.IMREAD_UNCHANGED)
     # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # save it

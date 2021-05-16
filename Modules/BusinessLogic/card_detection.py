@@ -213,7 +213,7 @@ def detect_video(capture, display=False, debug=False, filtering=False, callback=
                 
                 cv2.drawContours(rect_image, [d['cnt']], -1, FILL_COLOR, -1, cv2.LINE_AA)
                 cv2.putText(img_result, d['name'], (min(pts[0][0], pts[1][0]), min(pts[0][1], pts[1][1])),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200,200,200), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2)
                 img_result = cv2.addWeighted(img_result, 1, rect_image, 0.75, 0)
 
             if display:
