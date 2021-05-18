@@ -7,7 +7,7 @@ from PyQt5.QtGui import *
 from config import Config
 from ...BaseWidgets import *
 from Modules.BusinessLogic.ScryfallApi import fetch_data as fetch
-from Modules.BusinessLogic import card_detection as CardDetection
+from Modules.BusinessLogic import card_detection as CardDetection, pHash
 from Modules.Gui.QWorkerThread import QWorkerThread
 from Modules.Gui.PandasModel import PandasModel
 
@@ -15,6 +15,7 @@ class CardDetectionWidget(MyQWidget):
     def __init__(self, parent, root_window:QMainWindow):
         super().__init__(parent, root_window)
         self.isRunning = False
+        self.dataframe = None
 
         vbox_main = QVBoxLayout()
         vbox_lower = QVBoxLayout()
@@ -43,6 +44,7 @@ class CardDetectionWidget(MyQWidget):
         # self.searchbox = QLineEdit()
         self.searchbox = ScryfallSearchbox()
         self.searchbox.submit.connect(self.searchboxSubmitted)
+        self.searchbox.submit.connect(self.searchbox.clear, Qt.QueuedConnection)
         vbox_lower.addWidget(self.searchbox, alignment=Qt.AlignBottom)
         
         self.model = PandasModel(df=pd.DataFrame(columns=['Name','Set','Amount','Foil']))
@@ -61,24 +63,35 @@ class CardDetectionWidget(MyQWidget):
         self.root_window.setWindowTitle('Card Detection')
         self.root_window.resize(800, 835)
 
+        def _getWorkerResults(dataframe):
+            self.dataframe = dataframe
+            self.searchbox.setDataframe(dataframe)
+
+        worker = pHash.get_pHash_df_qtasync(parent=self, callback=_getWorkerResults, update=False)
+        worker.start()
+
     def onHide(self):
         self.stopCamera()
 
     def setCardImageLabel(self, card):
-        img = fetch.fetch_card_img(card, verbose=False)
-        pix = QPixmap(QImage(
-            img,
-            img.shape[1],
-            img.shape[0],
-            img.shape[1]*img.shape[2],
-            QImage.Format.Format_RGB888
-        ).rgbSwapped()).scaledToWidth(self.card_image_label.width(), Qt.SmoothTransformation)
-        self.card_image_label.setPixmap(pix)
+        def _task():
+            img = fetch.fetch_card_img(card, to_file=True, verbose=False)
+            pix = QPixmap(QImage(
+                img,
+                img.shape[1],
+                img.shape[0],
+                img.shape[1]*img.shape[2],
+                QImage.Format.Format_RGB888
+            ).rgbSwapped()).scaledToWidth(self.card_image_label.width(), Qt.SmoothTransformation)
+            self.card_image_label.setPixmap(pix)
+        
+        worker = QWorkerThread(self, _task)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
 
-    def searchboxSubmitted(self, value):
-        print(f'got result from searchbox: {value["name"]}')
-        self.setCardImageLabel(value)
-        self.searchbox.clear()
+    def searchboxSubmitted(self, card):
+        # print(f'got result from searchbox: {card["name"]}')
+        self.setCardImageLabel(card)
         
     def onHoverIndexChanged(self, modelIndex:QModelIndex):
         pass

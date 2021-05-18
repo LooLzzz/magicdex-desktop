@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 # from PIL import Image
 # from colorthief import ColorThief
-# import fast_colorthief
+import fast_colorthief
 
 # from Modules import *
 # from task_executor import TaskExecutor
@@ -123,44 +123,62 @@ def four_point_transform(image, pts):
     # return the warped image
     return warped
 
-def get_image_color(img, method='mean', colorspace_output='BGR', quality=1, normalize_hsv=True):
-    if isinstance(img, str):
-        img = plt.imread(img) # reads as RGB
 
-    if method == 'mean':
-        a,b,c = cv2.split(img)
-        res = [int(a.mean()), int(b.mean()), int(c.mean())]
-    # elif method == 'dominant':
-    #     # color_thief = ColorThief(img)
-    #     # res = color_thief.get_color(quality)
-    #     if isinstance(img, np.ndarray) and img.shape[2] == 3:
-    #         if normalize_hsv:
-    #             # normalize brightness value
-    #             img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    #             img_hsv[:,:,2] = cv2.equalizeHist(img_hsv[:,:,2])
-    #             img = cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR)
-            
-    #         # add alpha channel to the image array
-    #         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
 
-    #     res = fast_colorthief.get_dominant_color(img, quality)
-    else:
-        raise ValueError(f'Unknown method `{method}`')
-    
-    res = np.uint8([[res]]) # to 'image' format
-    if colorspace_output is None \
-            or colorspace_output.upper() == 'RGB':
-        pass
-    elif colorspace_output.upper() == 'LAB':
-        res = cv2.cvtColor(res, cv2.COLOR_RGB2LAB)
-    elif colorspace_output.upper() == 'HSV':
-        res = cv2.cvtColor(res, cv2.COLOR_RGB2HSV)
-    elif colorspace_output.upper() == 'BGR':
-        res = cv2.cvtColor(res, cv2.COLOR_RGB2BGR)
-    else:
-        raise ValueError(f'Unknown color space `{colorspace_output.upper()}`')
-    
-    res = list(res[0][0]) # back to single color format
+def automatic_brightness_and_contrast(image, src_colorspace='BGR', clip_hist_percent=0.25):
+    '''Automatic brightness and contrast optimization with optional histogram clipping'''
+    if src_colorspace.upper() == 'BGR':
+        gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
+    elif src_colorspace.upper() == 'RGB':
+        gray = cv2.cvtColor(image.copy(), cv2.COLOR_RGB2GRAY)
+
+    # Calculate grayscale histogram
+    hist = cv2.calcHist([gray],[0],None,[256],[0,256])
+    hist_size = len(hist)
+
+    # Calculate cumulative distribution from the histogram
+    accumulator = []
+    accumulator.append(float(hist[0]))
+    for index in range(1, hist_size):
+        accumulator.append(accumulator[index -1] + float(hist[index]))
+
+    # Locate points to clip
+    maximum = accumulator[-1]
+    clip_hist_percent *= maximum
+    clip_hist_percent /= 2.0
+
+    # Locate left cut
+    minimum_gray = 0
+    while accumulator[minimum_gray] < clip_hist_percent:
+        minimum_gray += 1
+
+    # Locate right cut
+    maximum_gray = hist_size -1
+    while accumulator[maximum_gray] >= (maximum - clip_hist_percent):
+        maximum_gray -= 1
+
+    # Calculate alpha and beta values
+    alpha = 255 / (maximum_gray - minimum_gray)
+    beta = -minimum_gray * alpha
+
+    auto_result = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+    return auto_result
+
+
+def get_image_color(img, quality=1, color_correction=True):
+    if color_correction:
+        # apply CLAHE to each channel
+        channels = cv2.split(img)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        channels_clahe = [ clahe.apply(ch) for ch in channels ]
+        img_clahe = cv2.merge(channels_clahe)
+
+        # perform auto gamma correction on CLAHE img
+        img_corrected = automatic_brightness_and_contrast(img_clahe, clip_hist_percent=0.1)
+
+        img = img_corrected
+
+    res = fast_colorthief.get_dominant_color(cv2.cvtColor(img, cv2.COLOR_BGR2RGBA), quality)
     return res
 
 def get_color_class(img=None, color:tuple=None, num_of_classes=4, eps=0.2, **kwargs): #method='dominant', colorspace_output='BGR', normalize_hsv):

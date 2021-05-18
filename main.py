@@ -1,4 +1,6 @@
-import sys, traceback
+import sys
+# import asyncio
+# from qasync import QEventLoop
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import QApplication
 
@@ -8,16 +10,18 @@ from Modules.Gui import RootWindow
 load_dotenv('dotenv')
 
 if __name__ == '__main__':
+    # sequential #
     app = QApplication(sys.argv)
     ex = RootWindow()
     ex.show()
-    ret_val = app.exec_()
-    sys.exit()
-
-    # phash_df = pHash.get_pHash_df(update=False)
-    # phash_df = pHash.get_pHash_df(update=True)
-    # phash_df = pHash.get_pHash_df()
+    sys.exit(app.exec_())
     
-    # phash_df = pHash.get_pHash_df(max_workers=1, update=True, flatten_phash=True) #DEBUG
-    # phash_df = pHash.get_pHash_df(flatten_phash=True)
-    # phash_df = pHash.get_pHash_df(flatten_phash=False)
+    
+    # # async #
+    # app = QApplication(sys.argv)
+    # loop = QEventLoop(app)
+    # asyncio.set_event_loop(loop)
+    # ex = RootWindow()
+    # ex.show()
+    # loop.run_forever()
+    

@@ -21,6 +21,10 @@ def find_rects_in_image(img, thresh_c=5, kernel_size=(3, 3), size_thresh=10000):
     """
     # Typical pre-processing - grayscale, blurring, thresholding
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    # img_clahe = clahe.apply(img_gray)
+    
     img_blur = cv2.medianBlur(img_gray, 5)
     img_thresh = cv2.adaptiveThreshold(img_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 5, thresh_c)
 
@@ -101,7 +105,7 @@ def detect_image(img, phash_df, hash_size=32, size_thresh=10000, display=True, d
         
         min_card = phash_df[phash_df['hash_diff'] == min(phash_df['hash_diff'])].iloc[0]
         card_name = min_card['name']
-        card_set = min_card['set']
+        card_set = min_card['set_id']
         det_cards += [ (card_name, card_set) ]
         hash_diff = min_card['hash_diff']
 
@@ -170,7 +174,7 @@ def detect_video(capture, display=False, debug=False, filtering=False, callback=
             det_cards += [{
                 'cnt': cnt,
                 'name': min_card['name'],
-                'set': min_card['set'],
+                'set': min_card['set_id'],
                 'img_warp': img_warp,
                 'hash_diff': min_diff,
                 'phash': phash_value

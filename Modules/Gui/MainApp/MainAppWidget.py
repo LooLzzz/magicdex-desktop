@@ -32,7 +32,8 @@ class MainAppWidget(MyStackedQWidget):
         fileMenu.addAction('Card Detection', lambda: self.showPage('cardDetection'))
         fileMenu.addAction('pHash DataFrame', lambda: self.showPage('pHash'))
         
-        editMenu.addAction('Update pHash', lambda: self.getPage('pHash').load_phash(True))
+        # editMenu.addAction('Update pHash', lambda: self.getPage('pHash').load_phash(True))
+        editMenu.addAction('Update pHash', self._update_phash)
         editMenu.addAction('Staging Area', lambda: self.showPage('stagingArea'))
 
         exitAction = QAction('Exit', self)
@@ -41,3 +42,8 @@ class MainAppWidget(MyStackedQWidget):
         fileMenu.addAction(exitAction)
 
         helpMenu.addAction('Show Console', self.root_window.console_window.show)
+
+    def _update_phash(self):
+        from Modules.BusinessLogic import pHash
+        worker = pHash.get_pHash_df_qtasync(parent=self, callback=None, update=True)
+        worker.start()

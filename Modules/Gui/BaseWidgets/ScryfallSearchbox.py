@@ -2,7 +2,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-from Modules.BusinessLogic import pHash
+from ...BusinessLogic import pHash
 from ..BaseWidgets import MyQTableView
 from ..PandasModel import PandasModel
 
@@ -11,28 +11,33 @@ CompleterRole = Qt.UserRole + 1
 class ScryfallSearchbox(QLineEdit):
     submit = pyqtSignal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, dataframe=None):
         super().__init__(parent)
         self.setPlaceholderText('Search cards..')
         
-        self.phash_df = pHash.get_pHash_df(update=False) \
-                .drop_duplicates(subset='name', keep='first') \
-                .sort_values(by='name')
-        self.model = PandasModel(df=self.phash_df)
-
-        completer = MyCompleter(self.model, column=3, parent=self)
-        self.setCompleter(completer)
-
-        # self.textEdited.connect(self.onTextEdited)
+        if dataframe is not None:
+            self.setDataframe(dataframe)
 
     # def setCompleter(self, completer):
     #     self._completer = completer
+
+    def setDataframe(self, dataframe):
+        self.dataframe = dataframe \
+                [ ~ dataframe['name'].str.contains('\(back\)') ] \
+                .sort_values(by=['name','released_at'], ascending=[True,False]) \
+                .drop_duplicates('name', keep='first') \
+                .reset_index(drop=True)
+        self.model = PandasModel(parent=self, df=self.dataframe)
+        completer = MyCompleter(self.model, column=0, parent=self)
+        
+        self.setCompleter(completer)
+        # self.textEdited.connect(self.onTextEdited)
 
     def keyPressEvent(self, event:QKeyEvent):
         key = event.key()
         if key == Qt.Key_Enter or key == Qt.Key_Return:
             # self.submit.emit(self.text())
-            df = self.model.dataframe
+            df = self.dataframe
             rows = df[ df['name'].str.lower() == self.text().lower() ]
             if len(rows) > 0:
                 val = rows.iloc[0].to_dict()

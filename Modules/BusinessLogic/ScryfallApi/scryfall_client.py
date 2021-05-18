@@ -119,7 +119,9 @@ def use_api(path:str, literal=None, **kwargs):
 
     # Convert res into a dataframe/series
     try:
-        res = res.sort_index(axis=1)
+        res = res \
+                .rename(columns={'id':'card_id','set':'set_id'}) \
+                .sort_index(axis=1)
         # if 'set' in res:
         #     res = res.sort_index(axis=1).sort_values(by=['set','name'])
         # else:
@@ -128,7 +130,9 @@ def use_api(path:str, literal=None, **kwargs):
         # if len(res) == 1:
         #     res = res.iloc[0]
     except ValueError:
-        res = pd.DataFrame(res).sort_index(axis=1)
+        res = pd.DataFrame(res) \
+                .rename(columns={'id':'card_id','set':'set_id'}) \
+                .sort_index(axis=1)
     return res
 
 def search(**kwargs):
@@ -179,13 +183,17 @@ def get_bulk_data(bulk_type='default_cards', to_file=False, subdir=None, filenam
         progress_bar.refresh()
     
     print('converting downloaded json to DataFrame..') #DEBUG        
-    res_df = pd.DataFrame(json.loads(frame)).sort_index(axis=1)#.set_index('id')
-    # prune un-needed data
-    res_df = prune_df(res_df)
+    res_df = pd.DataFrame(json.loads(frame)) \
+        .rename(columns={'id':'card_id', 'set':'set_id'}) \
+        .sort_index(axis=1)
+        # .set_index('card_id', drop=True)
+    
+    # keep only paper magic cards
+    res_df = res_df[ res_df['games'].apply(lambda x: 'paper' in x) ]
 
     if to_file:
         to_json(res_df, subdir, filename=filename, *args, **kwargs)
-    return res_df
+    return res_df.sort_index(axis=1)
 
 def get_all_sets(to_file=False, subdir=None, filename='sets', *args, **kwargs):
     '''
@@ -209,44 +217,6 @@ def get_card_from_id(id):
 #########################################################################################
 #########################################################################################
 
-def prune_df(df, en_only=True, no_digital=True):    
-    '''
-    df is excepted to contain cards
-    '''
-    # flip cards main image_uris is None by default.
-    # the image_uris of its card faces are located in ['card_faces'][0/1]['image_uris']
-    # extract image_uris of all flip cards
-
-    def _get_digital_sets():
-        df = pd.DataFrame()
-        path = f'{Config.cards_path}/all_sets.json'
-        if os.path.exists(path):
-            df = read_json(path)
-        else:
-            df = get_all_sets()
-        
-        set_list = df[ df['digital']==True ]['code'].to_list()
-        return set_list
-
-    flips = df[ df['image_uris'].isna() & df['name'].apply(lambda card_name: '//' in card_name) ]
-    for i in flips.index:
-        df.iloc[i]['image_uris'] = df.iloc[i]['card_faces'][0]['image_uris']
-    
-    # remove all cards without `image_uris`
-    nans = df[ df['image_uris'].isna() ]
-    df = df.drop(nans.index)
-    # df = df[ df['image_uris'].apply(lambda item: item is not None or reduce(lambda a,b: a != None and b != None, item.values()) ) ]
-    
-    # keep only english cards
-    if en_only:
-        df = df[ df['lang'] == 'en' ]
-
-    # remove all digital-only sets
-    if no_digital:
-        digital_sets = _get_digital_sets()
-        df = df[ ~ df['set'].isin(digital_sets) ] # ~ <=> not
-    return df
-
 def read_json(path, orient='records', lines=True, *args, **kwargs):
     '''
     Used to load DataFrames full of cards or set info.
@@ -264,17 +234,20 @@ def to_json(df:pd.DataFrame, subdir, filename='cards', orient='records', lines=T
     if subdir == None or subdir == '':
         subdir = Config.cards_path
     else:
-        subdir = f'{Config.data_path}/{subdir.strip("/")}'
+        subdir = os.path.join(Config.data_path, subdir.strip("/"))
     
     if filename==None or filename=='':
         filename = 'cards'
     else:
         filename = re.sub(r'(\.json)$', '', filename)
-    print(f"saving data to '{subdir}/{filename}.json'..") #DEBUG
+    
+    dirpath = os.path.join(subdir, f'{filename}.json')
+    print(f"saving data to {dirpath}..") #DEBUG
 
     # if this is true, then df is a card_df
     if 'image_uris' in df:
-        df = prune_df(df, en_only, no_digital)
+        df = df.rename(columns={'id':'card_id','set':'set_id'})
+        df = df[ df['games'].apply(lambda x: 'paper' in x) ]
 
     os.makedirs(subdir, exist_ok=True)
     return df.to_json(f'{subdir}/{filename}.json', orient=orient, lines=lines, indent=indent, *args, **kwargs)

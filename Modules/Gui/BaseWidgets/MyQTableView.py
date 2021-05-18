@@ -10,7 +10,8 @@ class MyQTableView(QTableView):
         super().__init__(parent)
 
         self.setSortingEnabled(True)
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch) 
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         # self.setShowGrid(True)
         self.setShowGrid(False)
         self.setSelectionBehavior(QTableView.SelectRows)

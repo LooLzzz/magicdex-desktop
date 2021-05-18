@@ -4,13 +4,14 @@ class TaskExecutor(ThreadPoolExecutor):
     '''
     A class for executing multi-threaded tasks.
     '''
-    def __init__(self, max_workers=5, delay=None):
+    def __init__(self, max_workers=5, delay=None, callback=None):
         '''
         `max_workers` max number of workers for the task pool.\n
         `delay` (optional) delay in seconds between tasks.
         '''
         super().__init__(max_workers)
         self._delay = delay
+        self.callback = callback
         self.futures = []
 
     def _delayed(self, func, delay=None):

@@ -8,12 +8,15 @@ from . import scryfall_client as Scryfall
 from ..task_executor import TaskExecutor
 from config import Config
 
-def load_all(df_type:str, to_file=True, *args, **kwargs):
+def load_all(df_type:str, to_file=False, *args, **kwargs):
     '''
     `df_kind` should be one of {'cards', 'sets'}
     '''
+    # return Scryfall.search(q='set:khm') 
+    # return Scryfall.search(q='set:khm or set:stx') 
+    # return Scryfall.search(q='kytheon')
     df = None
-    path = f'{Config.cards_path}/all_{df_type}.json'
+    path = os.path.join(Config.cards_path, f'all_{df_type}.json')
     if os.path.exists(path):
         df = Scryfall.read_json(path)
     else:
@@ -22,35 +25,50 @@ def load_all(df_type:str, to_file=True, *args, **kwargs):
         df = Scryfall.get_bulk_data(bulk_type, to_file=to_file, filename=f'all_{df_type}')
     return df
 
-def fetch_card_img_from_url(img_url):
-    res = requests.get(img_url, stream=True).raw
+def fetch_card_img_from_url(image_url):
+    res = requests.get(image_url, stream=True).raw
     img = np.asarray(bytearray(res.read()), dtype="uint8")
     img = cv2.imdecode(img, cv2.IMREAD_UNCHANGED)
     return img
 
 def fetch_card_img(card, to_file=False, verbose=True):
     '''
-    `card` should have the following properties: {`set`, `name`, (`collector_number` or `number`), (`image_uris` or `img_url`)}
+    `card` should have the following properties: {`set`, `name`, (`collector_number` or `number`), (`image_uris` or `image_url`)}
     '''
+    setid = card['set_id']
+    
     if 'image_uris' in card:
-        # img_url = card['image_uris']['large']
-        img_url = card['image_uris']['normal']
+        # image_url = card['image_uris']['large']
+        image_url = card['image_uris']['normal']
     else:
-        img_url = card['img_url']
+        image_url = card['image_url']
+    
     if 'collector_number' in card:
         number = card['collector_number']
     else:
         number = card['number']
-    setid = card['set']
+    
+    # card_face = ''
+    # if 'face' in card and not pd.isna(card['face']):
+    #     card_face = f"({card['face']})"
+    
     card_name = card['name'] \
+                    .strip() \
                     .lower() \
-                    .replace(' ', '_') \
-                    .replace('-', '_') \
-                    .replace(',', '') \
-                    .replace("'", '')
+                    .replace(' ',  '_') \
+                    .replace('-',  '_') \
+                    .replace(',',  '' ) \
+                    .replace("'",  '' ) \
+                    .replace('/',  '_') \
+                    .replace('\\', '_') \
+                    .replace(':',  '_') \
+                    .replace('*',  '_') \
+                    .replace('<',  '_') \
+                    .replace('>',  '_') \
+                    .replace('|',  '_')
     filename = f'{setid}-{number}-{card_name}'
-    subdir = f"{Config.cards_path}/images"
-    path = f'{subdir}/{filename}.jpg'
+    subdir = os.path.join(Config.cards_path, 'images')
+    path = os.path.join(subdir, f'{filename}.jpg')
 
     # get img from local dir
     if os.path.exists(path):
@@ -61,7 +79,7 @@ def fetch_card_img(card, to_file=False, verbose=True):
     # get img from url
     if verbose:
         print(f"image doesnt exist, fetching '{filename}'..") #DEBUG
-    res = requests.get(img_url, stream=True).raw
+    res = requests.get(image_url, stream=True).raw
     img = np.asarray(bytearray(res.read()), dtype="uint8")
     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
     # img = cv2.imdecode(img, cv2.IMREAD_UNCHANGED)

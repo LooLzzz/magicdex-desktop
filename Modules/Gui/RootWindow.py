@@ -18,9 +18,9 @@ class RootWindow(QMainWindow):
         
         #DEBUG
         mainAppWidget = MainAppWidget(self, self) 
-        mainAppWidget.showPage('cardDetection')
+        mainAppWidget.showPage('mainMenu')
+        # mainAppWidget.showPage('cardDetection')
         # mainAppWidget.showPage('pHash')
-        # mainAppWidget.showPage('mainMenu')
         self.setCentralWidget(mainAppWidget)
         #DEBUG
 
