@@ -147,7 +147,7 @@ def detect_video(capture, display=False, debug=False, filtering=False, callback=
         for cnt in cnts:
             pts = utils.cnt_to_pts(cnt)
             img_warp = utils.four_point_transform(img, pts)
-            phash_value = pHash.img_to_phash(img_warp).hash.flatten()
+            phash_value = pHash.img_to_phash(img_warp)#.hash.flatten()
             min_diff = threshold+1
 
             if len(prev_det_cards) > 0:
@@ -172,9 +172,10 @@ def detect_video(capture, display=False, debug=False, filtering=False, callback=
                 min_card = df_filtered[df_filtered['hash_diff'] == min_diff].iloc[0]
             
             det_cards += [{
-                'cnt': cnt,
                 'name': min_card['name'],
-                'set': min_card['set_id'],
+                'set_id': min_card['set_id'],
+                'card_id': min_card['card_id'],
+                'cnt': cnt,
                 'img_warp': img_warp,
                 'hash_diff': min_diff,
                 'phash': phash_value

@@ -1,3 +1,4 @@
+import pandas as pd
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -16,17 +17,22 @@ class ScryfallSearchbox(QLineEdit):
         self.setPlaceholderText('Search cards..')
         
         if dataframe is not None:
-            self.setDataframe(dataframe)
+            self.setDataFrame(dataframe)
 
     # def setCompleter(self, completer):
     #     self._completer = completer
 
-    def setDataframe(self, dataframe):
+    def setDataFrame(self, dataframe:pd.DataFrame):
+        # no transform cards, no dupes
         self.dataframe = dataframe \
                 [ ~ dataframe['name'].str.contains('\(back\)') ] \
                 .sort_values(by=['name','released_at'], ascending=[True,False]) \
                 .drop_duplicates('name', keep='first') \
                 .reset_index(drop=True)
+        
+        # all cards (with dupes), not including back side of transform cards
+        self.all_cards = dataframe[ ~ dataframe['name'].str.contains('\(back\)') ]
+        
         self.model = PandasModel(parent=self, df=self.dataframe)
         completer = MyCompleter(self.model, column=0, parent=self)
         
@@ -60,14 +66,18 @@ class ScryfallSearchbox(QLineEdit):
 
 
 class MyCompleter(QCompleter):
-    def __init__(self, pandasModel, column, parent=None):
+    def __init__(self, model:PandasModel, column, parent=None):
         super().__init__(parent)
         proxy = CompleterProxyModel(column)
-        proxy.setSourceModel(pandasModel)
+        proxy.setSourceModel(model)
         self.setModel(proxy)
         # self.setModel(pandasModel)
 
-        self.setCompletionColumn(column)
+        if isinstance(column, int):
+            self.setCompletionColumn(column)
+        else:
+            self.setCompletionColumn(model.columnNamed(column))
+
         self.setCompletionRole(CompleterRole)
         # self.setFilterMode(Qt.MatchContains)
         self.setModelSorting(QCompleter.CaseInsensitivelySortedModel)

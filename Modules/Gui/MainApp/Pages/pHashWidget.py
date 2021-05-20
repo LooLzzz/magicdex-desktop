@@ -30,7 +30,7 @@ class pHashWidget(MyQWidget):
         hbox.addWidget(self.lbl_rowCount, alignment=Qt.AlignRight)
 
         self.model = PandasModel(parent=self, df=None)
-        self.tableView = MyQTableView(parent=self, model=self.model)
+        self.tableView = MyQTableView(parent=self, model=self.model, contextMenuEnabled=False)
         # self.tableView = QTableView(parent=self)
         # self.tableView.setModel(self.model)
         # self.tableView.hoverIndexChanged.connect(self.onHoverIndexChanged)
@@ -68,5 +68,5 @@ class pHashWidget(MyQWidget):
         if self.model.dataframe is None:
             worker = pHash.get_pHash_df_qtasync(parent=self, callback=_getWorkerResults, update=False)
             # worker = pHash.get_pHash_df_qtasync(parent=self, callback=_getWorkerResults, update=True)
-            worker.run()
+            worker.start()
             # self.load_phash(False)

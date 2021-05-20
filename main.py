@@ -10,14 +10,19 @@ from Modules.Gui import RootWindow
 load_dotenv('dotenv')
 
 if __name__ == '__main__':
-    # sequential #
-    app = QApplication(sys.argv)
-    ex = RootWindow()
-    ex.show()
-    sys.exit(app.exec_())
+    ## sequential ##
+    try:
+        app = QApplication(sys.argv)
+        ex = RootWindow()
+        ex.show()
+        app.exec_()
+    except BaseException as e:
+        print(e)
+    finally:
+        sys.exit()
     
     
-    # # async #
+    # ## async ##
     # app = QApplication(sys.argv)
     # loop = QEventLoop(app)
     # asyncio.set_event_loop(loop)
