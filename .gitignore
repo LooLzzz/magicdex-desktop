@@ -1,7 +1,13 @@
 .venv
 .env
-dotenv
 .vscode
+dotenv
+
+# pyinstaller files
+build
+dist
+*.spec
+
 *tmp*
 data/**/images/**
 # data/**/*.jpg
@@ -10,6 +16,6 @@ __pycache__
 
 fast-colorthief-install
 
-## large files
+# large files
 all_cards*
 all_sets*

@@ -58,14 +58,15 @@ class PandasModel(QAbstractTableModel):
         
         if self.dataframe is None:
             self.setDataFrame(data)
-        elif row == -1:
-            df = pd.concat([self.dataframe, data]).reset_index(drop=True)
-            self.setDataFrame(df)
         else:
-            upper = self.dataframe[:row]
-            lower = self.dataframe[row:]
-            df = pd.concat([upper, data, lower]).reset_index(drop=True)
-            self.setDataFrame(df)
+            if row >= 0:
+                upper = self.dataframe[:row]
+                lower = self.dataframe[row:]
+                df = pd.concat([upper, data, lower]).reset_index(drop=True)
+                self.setDataFrame(df)
+            else:
+                df = pd.concat([self.dataframe, data]).reset_index(drop=True)
+                self.setDataFrame(df)
 
     def removeRow(self, rows:Union[int,list,tuple]):
         if self.currentItems is None:

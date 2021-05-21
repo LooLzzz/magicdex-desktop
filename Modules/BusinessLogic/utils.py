@@ -1,4 +1,4 @@
-import cv2, math
+import cv2, math, os
 import numpy as np
 from matplotlib import pyplot as plt
 # from PIL import Image
@@ -8,7 +8,7 @@ import fast_colorthief
 # from Modules import *
 # from task_executor import TaskExecutor
 # from p_hash import pHash
-# from config import Config
+from config import Config
 
 class Singleton(type):
     _instances = {}
@@ -225,3 +225,15 @@ def get_color_class(img=None, color:tuple=None, num_of_classes=4, eps=0.2, **kwa
                 cats[channel] += [ cat ]
 
     return cats
+
+def add_foil_overlay(img:np.ndarray):
+    overlay_path = os.path.join(Config.cards_path, 'foil_overlay.png')
+    overlay = cv2.imread(overlay_path) # BGR
+
+    # to img's size
+    h,w,ch = img.shape
+    overlay = cv2.resize(overlay, (w,h), interpolation=cv2.INTER_AREA)
+
+    # apply overlay
+    img_with_overlay = cv2.addWeighted(img, 1, overlay, 0.275, 0)
+    return img_with_overlay

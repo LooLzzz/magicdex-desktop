@@ -1,5 +1,4 @@
 import cv2, timeit
-from numpy.lib.arraysetops import isin
 import pandas as pd
 import numpy as np
 from PyQt5.QtWidgets import *
@@ -9,7 +8,7 @@ from PyQt5.QtGui import *
 from config import Config
 from ...BaseWidgets import *
 from Modules.BusinessLogic.ScryfallApi import fetch_data as fetch
-from Modules.BusinessLogic import card_detection as CardDetection, pHash
+from Modules.BusinessLogic import card_detection as CardDetection, pHash, utils
 from Modules.Gui.QWorkerThread import QWorkerThread
 from Modules.Gui.PandasModel import PandasModel
 
@@ -85,6 +84,8 @@ class CardDetectionWidget(MyQWidget):
                 self.card_image_label.setPixmap(pixmap)
             else:
                 img = fetch.fetch_card_img(card, to_file=True, verbose=False)
+                if 'foil' in card and card['foil']:
+                    img = utils.add_foil_overlay(img)
                 pixmap = QPixmap(QImage(
                     img,
                     img.shape[1],
