@@ -1,5 +1,7 @@
-from . import BusinessLogic
-from .import Gui
+from .Gui.RootWindow import RootWindow
+
+# from . import BusinessLogic
+# from . import Gui
 
 # from .BusinessLogic.ScryfallApi import \
 #         fetch_data as fetch, \

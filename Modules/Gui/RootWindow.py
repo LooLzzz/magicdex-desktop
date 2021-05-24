@@ -2,8 +2,9 @@ import sys
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from . import LoginWidget, ConsoleWindow
-from . import MainAppWidget
+from .Login.LoginWidget import LoginWidget
+from .MainApp.ConsoleWindow import ConsoleWindow
+from .MainApp.MainAppWidget import MainAppWidget
 
 class RootWindow(QMainWindow):
     closeSignal = pyqtSignal(QEvent)

@@ -1,25 +1,26 @@
-import sys
+import sys #, cgitb
 # import asyncio
 # from qasync import QEventLoop
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import QApplication
 
-from Modules.Gui import RootWindow
-# from Modules.BusinessLogic import *
+from Modules import RootWindow
 
 load_dotenv('dotenv')
 
+def except_hook(cls, exception, traceback):
+    sys.__excepthook__(cls, exception, traceback)
+
 if __name__ == '__main__':
+    # cgitb.enable(format='text')
+    sys.excepthook = except_hook
+
     ## sequential ##
-    try:
-        app = QApplication(sys.argv)
-        ex = RootWindow()
-        ex.show()
-        app.exec_()
-    except BaseException as e:
-        print(e)
-    finally:
-        sys.exit()
+    app = QApplication(sys.argv)
+    ex = RootWindow()
+    ex.show()
+    app.exec_()
+    sys.exit()
     
     
     # ## async ##

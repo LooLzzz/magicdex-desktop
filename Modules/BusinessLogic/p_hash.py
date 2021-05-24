@@ -6,8 +6,10 @@ from tqdm import tqdm
 from datetime import date, datetime
 
 from config import Config
+
 from .ScryfallApi import scryfall_client as Scryfall
 from .ScryfallApi import fetch_data as fetch
+from ..Gui.QWorkerThread import QWorkerThread
 from .task_executor import TaskExecutor
 from . import utils
 
@@ -239,9 +241,7 @@ class _pHash(metaclass=utils.Singleton):
         # self.phash_df = phash_df
         return self.phash_df
 
-    def get_pHash_df_qtasync(self, parent=None, callback=None, max_workers=200, save_imgs=True, verbose=False, update=None):
-        from ..Gui import QWorkerThread
-        
+    def get_pHash_df_qtasync(self, parent=None, callback=None, max_workers=200, save_imgs=True, verbose=False, update=None):        
         # res = self.get_pHash_df(max_workers=max_workers, save_imgs=save_imgs, verbose=verbose, update=update)
         # callback(res)
 

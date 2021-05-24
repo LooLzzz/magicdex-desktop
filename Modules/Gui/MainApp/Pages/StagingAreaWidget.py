@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-from ...BaseWidgets import MyQWidget
+from ...BaseWidgets.MyQWidget import MyQWidget
 
 class StagingAreaWidget(MyQWidget):
     def __init__(self, parent, root_window:QMainWindow):

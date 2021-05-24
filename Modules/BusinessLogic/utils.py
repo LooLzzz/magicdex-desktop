@@ -1,14 +1,15 @@
-import cv2, math, os
+import cv2, math, os, unicodedata, re
 import numpy as np
 from matplotlib import pyplot as plt
 # from PIL import Image
 # from colorthief import ColorThief
 import fast_colorthief
 
-# from Modules import *
+from config import Config
+
 # from task_executor import TaskExecutor
 # from p_hash import pHash
-from config import Config
+
 
 class Singleton(type):
     _instances = {}
@@ -237,3 +238,20 @@ def add_foil_overlay(img:np.ndarray):
     # apply overlay
     img_with_overlay = cv2.addWeighted(img, 1, overlay, 0.275, 0)
     return img_with_overlay
+
+def slugify(value, allow_unicode=False):
+    """
+    Taken from https://github.com/django/django/blob/master/django/utils/text.py
+    Convert to ASCII if 'allow_unicode' is False. Convert spaces or repeated
+    dashes to single dashes. Remove characters that aren't alphanumerics,
+    underscores, or hyphens. Convert to lowercase. Also strip leading and
+    trailing whitespace, dashes, and underscores.
+    """
+    value = str(value)
+    if allow_unicode:
+        value = unicodedata.normalize('NFKC', value)
+    else:
+        value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
+    value = re.sub(r'[^\w\s-]', '', value.lower())
+    value = re.sub(r'[-\s]+', '_', value).strip('-_') 
+    return value

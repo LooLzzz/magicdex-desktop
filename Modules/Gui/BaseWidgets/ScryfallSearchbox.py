@@ -3,8 +3,8 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-from ...BusinessLogic import pHash
-from ..BaseWidgets import MyQTableView
+from ...BusinessLogic.p_hash import pHash
+from ..BaseWidgets.MyQTableView import MyQTableView
 from ..PandasModel import PandasModel
 
 CompleterRole = Qt.UserRole + 1

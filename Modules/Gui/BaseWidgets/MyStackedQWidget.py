@@ -1,7 +1,7 @@
 # from collections import OrderedDict
 from PyQt5.QtWidgets import *
 
-from . import MyQWidget
+from .MyQWidget import MyQWidget
 
 class MyStackedQWidget(QStackedWidget):
     def __init__(self, parent, root_window, pageStack:MyQWidget=None):

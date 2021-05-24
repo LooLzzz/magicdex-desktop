@@ -4,9 +4,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 # from IPython.display import display
 
+from config import Config
+
+from .. import utils
 from . import scryfall_client as Scryfall
 from ..task_executor import TaskExecutor
-from config import Config
+
 
 def load_all(df_type:str, to_file=False, *args, **kwargs):
     '''
@@ -52,20 +55,7 @@ def fetch_card_img(card, to_file=False, verbose=True):
     # if 'face' in card and not pd.isna(card['face']):
     #     card_face = f"({card['face']})"
     
-    card_name = card['name'] \
-                    .strip() \
-                    .lower() \
-                    .replace(' ',  '_') \
-                    .replace('-',  '_') \
-                    .replace(',',  '' ) \
-                    .replace("'",  '' ) \
-                    .replace('/',  '_') \
-                    .replace('\\', '_') \
-                    .replace(':',  '_') \
-                    .replace('*',  '_') \
-                    .replace('<',  '_') \
-                    .replace('>',  '_') \
-                    .replace('|',  '_')
+    card_name = utils.slugify(card['name'])
     filename = f'{setid}-{number}-{card_name}'
     subdir = os.path.join(Config.cards_path, 'images')
     path = os.path.join(subdir, f'{filename}.jpg')

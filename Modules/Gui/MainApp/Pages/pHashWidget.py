@@ -6,9 +6,11 @@ from PyQt5.QtGui import *
 
 from config import Config
 
-from Modules.BusinessLogic import pHash
-from Modules.Gui import MyQWidget, MyQTableView
+from ....BusinessLogic.p_hash import pHash
+from ...BaseWidgets.MyQWidget import MyQWidget
+from ...BaseWidgets.MyQTableView import MyQTableView
 from ...PandasModel import PandasModel
+
 
 class pHashWidget(MyQWidget):
     def __init__(self, parent, root_window:QMainWindow):

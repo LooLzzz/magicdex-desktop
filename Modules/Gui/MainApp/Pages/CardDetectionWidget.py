@@ -1,4 +1,4 @@
-import cv2, timeit
+import cv2, timeit, sys
 import pandas as pd
 import numpy as np
 from PyQt5.QtWidgets import *
@@ -6,17 +6,23 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 from config import Config
-from ...BaseWidgets import *
-from Modules.BusinessLogic.ScryfallApi import fetch_data as fetch
-from Modules.BusinessLogic import card_detection as CardDetection, pHash, utils
-from Modules.Gui.QWorkerThread import QWorkerThread
-from Modules.Gui.PandasModel import PandasModel
+from ....BusinessLogic.ScryfallApi import fetch_data as fetch
+from ....BusinessLogic import card_detection as CardDetection, utils
+from ....BusinessLogic.p_hash import pHash
+from ...QWorkerThread import QWorkerThread
+from ...BaseWidgets.MyQTableView import MyQTableView
+from ...BaseWidgets.MyQWidget import MyQWidget
+from ...BaseWidgets.ScryfallSearchbox import ScryfallSearchbox
+from ...PandasModel import PandasModel
+
 
 class CardDetectionWidget(MyQWidget):
     def __init__(self, parent, root_window:QMainWindow):
         super().__init__(parent, root_window)
         self.isRunning = False
         self.dataframe = None
+        self.rotation_flag = False
+        self.image_worker = None
         self.detectionHelper = DetectionHelper(parent=self)
         self.detectionHelper.results.connect(self.addCardsToTableView)
 
@@ -38,7 +44,7 @@ class CardDetectionWidget(MyQWidget):
         
         # image label
         self.video_label = QLabel()
-        self.video_label.resize(640, 640)
+        self.video_label.resize(640, 480)
         vbox_main.addWidget(self.video_label, alignment=Qt.AlignCenter)
 
         vbox_main.addLayout(hbox_lower)
@@ -61,6 +67,19 @@ class CardDetectionWidget(MyQWidget):
         self.card_image_label.setFixedSize(200, 280)
         self.setCardImageLabel()
         hbox_lower.addWidget(self.card_image_label, alignment=Qt.AlignRight|Qt.AlignBottom)
+
+        self.rotate_frame = QFrame(parent=self.video_label)
+        self.rotate_frame.setGeometry(595, -5, 50, 50)
+        vbox = QVBoxLayout()
+        self.rotate_btn = QPushButton('⭮')
+        font = self.rotate_btn.font()
+        font.setBold(True)
+        font.setPixelSize(25)
+        self.rotate_btn.setFont(font)
+        self.rotate_btn.clicked.connect(self.onRotateBtnClicked)
+        self.rotate_frame.setHidden(True)
+        vbox.addWidget(self.rotate_btn)
+        self.rotate_frame.setLayout(vbox)
     
     def onShow(self):
         self.root_window.setWindowTitle('Card Detection')
@@ -95,11 +114,25 @@ class CardDetectionWidget(MyQWidget):
                 )).scaledToWidth(self.card_image_label.width(), Qt.SmoothTransformation)
                 self.card_image_label.setPixmap(pixmap)
         
-        worker = QWorkerThread(self, _task)
-        worker.finished.connect(worker.deleteLater)
-        worker.start()
-        # worker.exit()
-        # worker.quit()
+        # if self.image_worker and self.image_worker.isRunning():
+        #     self.image_worker.deleteLater()
+
+        self.image_worker = QWorkerThread(self, _task)
+        self.image_worker.finished.connect(self.image_worker.deleteLater)
+        self.image_worker.start()
+        # _task()
+
+    def onRotateBtnClicked(self, _checked):
+        self.rotation_flag = not self.rotation_flag
+        
+        if self.cardDetectionWorker.isRunning():
+            self.cardDetectionWorker.terminate()
+
+        self.cardDetectionWorker = QWorkerThread(self, CardDetection.detect_video,
+                                    capture=self.capture, display=False, debug=False, filtering=False,
+                                    callback=self.getDetectionResults, rotation_flag=self.rotation_flag
+                                )
+        self.cardDetectionWorker.start()
 
     def searchboxSubmitted(self, card):
         # print(f'got result from searchbox: {card["name"]}')
@@ -152,28 +185,40 @@ class CardDetectionWidget(MyQWidget):
             print('Failed to open camera.')
             return
         
-        self.worker = QWorkerThread(self, CardDetection.detect_video,
-                                    self.capture, display=False, debug=False, filtering=False,
-                                    callback=self.getDetectionResults
+        self.rotate_frame.setHidden(False)
+        self.cardDetectionWorker = QWorkerThread(self, CardDetection.detect_video,
+                                    capture=self.capture, display=False, debug=False, filtering=False,
+                                    callback=self.getDetectionResults, rotation_flag=self.rotation_flag
                                 )
-        self.worker.start()
-        # CardDetection.detect_video(self.capture, display=False, debug=False, filtering=False, callback=self.getDetectionResults)
-        # CardDetection.detect_video(self.capture, display=True, debug=False, filtering=False, callback=self.getDetectionResults)
+        self.cardDetectionWorker.start()
+        # CardDetection.detect_video(self.capture, display=False, debug=False, filtering=False, callback=self.getDetectionResults, rotation_flag=self.rotation_flag)
+        # CardDetection.detect_video(self.capture, display=True, debug=False, filtering=False, callback=self.getDetectionResults, rotation_flag=self.rotation_flag)
 
         self.isRunning = True
 
     def stopCamera(self):
         if self.isRunning:
             if hasattr(self, 'worker'):
-                self.worker.terminate()
+                self.cardDetectionWorker.quit()
             if hasattr(self, 'capture'):
                 self.capture.release()
+            self.rotate_frame.setHidden(True)
             self.video_label.clear()
             self.isRunning = False
             print() # print a new line
 
 
     def getDetectionResults(self, det_cards, img_result):
+        # if self.rotation_flag:
+        #     img_result = cv2.rotate(img_result, self.rotation_flag)
+            
+        #     h,w,ch = img_result.shape
+        #     self.rotate_frame.setGeometry(w-5, -5, 50, 50)
+        #     if self.rotation_flag == cv2.ROTATE_90_COUNTERCLOCKWISE \
+        #             or self.rotation_flag == cv2.ROTATE_90_CLOCKWISE:
+        #         d = (h-w)//2
+        #         img_result = img_result[d:w+d, :w]
+
         pixmap = QPixmap(QImage(
             img_result,
             img_result.shape[1],
@@ -181,6 +226,7 @@ class CardDetectionWidget(MyQWidget):
             QImage.Format_BGR888)
         )#.scaledToWidth(self.video_label.width(), Qt.SmoothTransformation)
         self.video_label.setPixmap(pixmap)
+        self.video_label.update()
 
         det_cards = pd.DataFrame(det_cards)
         self.detectionHelper(det_cards)
@@ -190,7 +236,14 @@ class CardDetectionWidget(MyQWidget):
         #     self.addCardsToTableView(res)
 
 
+####################################################################################
+####################################################################################
+
+
 class DetectionHelper(QObject):
+    '''
+    helper class for calculating which card should be added to the main dataframe.
+    '''
     results = pyqtSignal(pd.DataFrame, pd.DataFrame)
 
     def __init__(self, parent=None):
@@ -201,15 +254,14 @@ class DetectionHelper(QObject):
         self.cards_buffer = pd.DataFrame(columns=['name','frames_on_screen']) # columns=['frames_on_screen'] + ['name', 'set_id', 'card_id', 'cnt', 'img_warp', 'hash_diff', 'phash']
         self.phash_df = pHash.get_pHash_df(update=False)
 
-    def update_frame_times(self):
+    def update_frame_times(self, N=30):
         current_call_time = timeit.default_timer()
         if self.last_call_time is not None:
             self.frame_times += [ current_call_time - self.last_call_time ]
 
         # only keep last N frame times
-        keep = 30
-        if len(self.frame_times) > keep:
-            self.frame_times = self.frame_times[1:keep+1]
+        if len(self.frame_times) > N:
+            self.frame_times = self.frame_times[1:N+1]
 
         self.fps = 1/np.mean(self.frame_times) if self.frame_times else 30
         self.last_call_time = current_call_time
@@ -248,7 +300,7 @@ class DetectionHelper(QObject):
                         .groupby('card_id', as_index=False) \
                         .agg(agg_cols) \
                         .reset_index(drop=True)
-                
+                 
                 # cards to remove from buffer
                 self.cards_buffer = self.cards_buffer[ self.cards_buffer['frames_on_screen'] > 0 ].copy()
 
@@ -267,6 +319,6 @@ class DetectionHelper(QObject):
             # print('---')
             if not res_info.empty:
                 res = self.phash_df[ self.phash_df['card_id'].isin(res_info['card_id']) ]
-                self.results.emit(res, res_info)
+                self.results.emit(res.copy(), res_info.copy())
         except Exception as e:
-            print(e)
+            print(e, file=sys.stderr)

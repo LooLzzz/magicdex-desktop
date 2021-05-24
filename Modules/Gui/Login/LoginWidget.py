@@ -5,7 +5,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 from ..QWorkerThread import QWorkerThread
-from ..BaseWidgets import MyQWidget
+from ..BaseWidgets.MyQWidget import MyQWidget
 from ..MainApp.MainAppWidget import MainAppWidget
 
 class LoginWidget(MyQWidget):
@@ -68,9 +68,10 @@ class LoginWidget(MyQWidget):
         event.accept()
 
     def onClickLogin(self):
-        def _worker_task(username, password):
-            mongo_uri = os.environ.get('MONGO_URI')
-            client = MongoClient(mongo_uri)
+        def _login_task(username, password):
+            import certifi
+            mongo_uri = os.environ.get('MONGO_READ_URI')
+            client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
 
             db = client['mtg-draftsim']
             users = db['users']
@@ -97,9 +98,10 @@ class LoginWidget(MyQWidget):
             self.password_input.setDisabled(True)
             self.root_window.statusBar().showMessage('Logging in..', -1)
             
-            self.worker = QWorkerThread(self, _worker_task, self.username_input.text(), self.password_input.text())
+            self.worker = QWorkerThread(self, _login_task, self.username_input.text(), self.password_input.text())
             self.worker.results.connect(self.getWorkerResults)
             self.worker.start()
+            # _login_task(self.username_input.text(), self.password_input.text())
     
     def getWorkerResults(self, flag:bool):
         if flag:

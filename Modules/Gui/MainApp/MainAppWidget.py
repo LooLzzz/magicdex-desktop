@@ -4,8 +4,14 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-from ..BaseWidgets import MyStackedQWidget, MyQWidget
-from .Pages import *
+from ..BaseWidgets.MyStackedQWidget import MyStackedQWidget
+from ..BaseWidgets.MyQWidget import MyQWidget
+from ...BusinessLogic.p_hash import pHash
+from .Pages.MainMenu import MainMenu
+from .Pages.pHashWidget import pHashWidget
+from .Pages.CardDetectionWidget import CardDetectionWidget
+from .Pages.StagingAreaWidget import StagingAreaWidget
+
 
 class MainAppWidget(MyStackedQWidget):
     def __init__(self, parent, root_window:QMainWindow):
@@ -44,6 +50,5 @@ class MainAppWidget(MyStackedQWidget):
         helpMenu.addAction('Show Console', self.root_window.console_window.show)
 
     def _update_phash(self):
-        from Modules.BusinessLogic import pHash
         worker = pHash.get_pHash_df_qtasync(parent=self, callback=None, update=True)
         worker.start()

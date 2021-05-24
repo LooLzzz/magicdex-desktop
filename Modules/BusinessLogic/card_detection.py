@@ -2,11 +2,11 @@ import cv2, time
 import numpy as np
 import pandas as pd
 
-# from Modules.utils import four_point_transform, resize_with_aspect_ratio, cnt_to_pts, get_color_class
+from config import Config
+
 from .task_executor import TaskExecutor
 from .p_hash import pHash
 from . import utils
-from config import Config
 
 # os.environ['MODIN_ENGINE'] = 'dask'  # Modin will use Dask
 
@@ -137,7 +137,7 @@ def detect_images(imgs, **kwargs):
         detect_image(img, phash_df, **kwargs)
         cv2.destroyAllWindows()
 
-def detect_video(capture, display=False, debug=False, filtering=False, callback=None):
+def detect_video(capture, display=False, debug=False, filtering=False, rotation_flag=False, callback=None):
     def _task(img, prev_det_cards, df, filtering, debug, threshold=350):
         start_time = time.time()
         det_cards = []
@@ -203,6 +203,9 @@ def detect_video(capture, display=False, debug=False, filtering=False, callback=
             # (det_cards, img_result) = detect_image(frame, phash_df=phash_df, display=False, debug=debug)
             # (det_cards, img_result) = detect_image(frame, phash_df=phash_df_split, display=False, debug=debug)
 
+            if rotation_flag:
+                frame = cv2.rotate(frame, cv2.ROTATE_180)
+            
             img_result = frame.copy()
             if len(task_master.futures) == 0:
                 task_master.submit(_task, img=frame, prev_det_cards=det_cards, df=phash_df, filtering=filtering, debug=debug)
