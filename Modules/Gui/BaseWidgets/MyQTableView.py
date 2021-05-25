@@ -1,13 +1,17 @@
+import pandas as pd
+import numpy as np
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
+
+from ..PandasModel import PandasModel
 
 
 class MyQTableView(QTableView):
     hoverIndexChanged = pyqtSignal(QModelIndex)
     # customMenuRequested = pyqtSignal(QPoint)
     
-    def __init__(self, parent=None, model:QAbstractTableModel=None, columns=None, alignment=None, contextMenuEnabled=True):
+    def __init__(self, parent=None, model:PandasModel=None, columns=None, alignment=None, contextMenuEnabled=True):
         super().__init__(parent)
 
         self.setSortingEnabled(True)
@@ -29,7 +33,7 @@ class MyQTableView(QTableView):
         self.modelLayoutConnection = None
         self.setModel(model)
 
-    def setModel(self, model:QAbstractTableModel):
+    def setModel(self, model:PandasModel):
         if self.modelLayoutConnection:
             self.model().disconnect(self.modelLayoutConnection)
         self.modelLayoutConnection = model.layoutChanged.connect(self.onModelLayoutChanged)
@@ -54,16 +58,18 @@ class MyQTableView(QTableView):
 
     def contextMenuEvent(self, event):
         if self.contextMenuEnabled:
-            rows = []
-            cols = []
+            indexes = np.empty((0,2))
             if self.selectionModel().selection().indexes():
-                for i in self.selectionModel().selection().indexes():
-                    rows += [ i.row() ]
-                    cols += [ i.column() ]
-            # row,col = [self.rowAt(event.pos().y()), self.columnAt(event.pos().x())]
+                indexes = np.array(
+                    [ (i.row(),i.column()) for i in self.selectionModel().selection().indexes() ]
+                )
+            
+            rows = indexes[:,0]
+            cols = indexes[:,1]
 
             self.menu = QMenu(self)
-            self.menu.addAction('Remove', lambda: self.sourceModel.removeRow(rows))
+            self.menu.addAction('Remove', lambda: self.sourceModel.removeRow(np.unique(rows)))
+            self.menu.addAction('Duplicate', lambda: self.sourceModel.duplicateRows(np.unique(rows)))
             
             self.menu.popup(QCursor.pos())
             event.accept()

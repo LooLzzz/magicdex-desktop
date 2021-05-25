@@ -58,6 +58,7 @@ class CardDetectionWidget(MyQWidget):
         
         self.model = PandasModel()
         self.tableView = MyQTableView(parent=self, model=self.model, columns=['name','set_name','set_id','amount','foil'], alignment=Qt.AlignCenter)
+        self.tableView.setAlternatingRowColors(False)
         self.tableView.setSortingEnabled(False)
         self.tableView.hoverIndexChanged.connect(self.onHoverIndexChanged)
         self.tableView.setFixedHeight(252)
@@ -157,14 +158,23 @@ class CardDetectionWidget(MyQWidget):
                 or df.empty \
                 or ('card_id' in df
                         and df[df['card_id'].isin(card_id)].empty):
+            # card IS NOT present in the tableview
             cards['amount'] = 1
             cards['foil'] = False
             
-            self.model.insertRow(-1, cards)
+            self.model.insertRow(-1, cards)            
+            select_rows = [self.model.rowCount()-1]
         else:
+            # card IS present in the tableview
             card_rows = df[df['card_id'].isin(card_id)]
-            df.loc[card_rows.index, 'amount'] += 1
+            df.loc[card_rows.index[-1], 'amount'] += 1
             self.model.setDataFrame(df)
+            select_rows = card_rows.index.tolist()
+        
+        for r in select_rows:
+            self.tableView.selectRow(r)
+            self.tableView.scrollTo(self.tableView.model().index(r, 0))
+
 
     def onHoverIndexChanged(self, index:QModelIndex):
         if index.isValid():

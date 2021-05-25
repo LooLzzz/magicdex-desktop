@@ -76,9 +76,18 @@ class PandasModel(QAbstractTableModel):
             rows = [rows]
 
         rows = self.currentItems.iloc[rows]
-        df = self.dataframe.drop(index=rows.index)
+        df = self.dataframe.drop(index=rows.index).reset_index(drop=True)
         self.setDataFrame(df)
         return rows
+
+    def duplicateRows(self, rows):
+        df = self.dataframe
+        dup_rows = self.currentItems.iloc[rows]
+        upper = df.iloc[:rows[-1]]
+        lower = df.iloc[rows[-1]:]
+        
+        df = pd.concat([ upper, dup_rows, lower ]).reset_index(drop=True)
+        self.setDataFrame(df)
 
     def data(self, index, role=Qt.DisplayRole):
         if index.isValid():
