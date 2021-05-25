@@ -147,7 +147,7 @@ def detect_video(capture, display=False, debug=False, filtering=False, rotation_
         for cnt in cnts:
             pts = utils.cnt_to_pts(cnt)
             img_warp = utils.four_point_transform(img, pts)
-            phash_value = pHash.img_to_phash(img_warp)#.hash.flatten()
+            phash_value = pHash.img_to_phash(img_warp, crop_scale=0.95) # crop 5% of image outer boundaries
             min_diff = threshold+1
 
             if len(prev_det_cards) > 0:

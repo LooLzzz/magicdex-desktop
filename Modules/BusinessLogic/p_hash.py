@@ -7,15 +7,15 @@ from datetime import date, datetime
 
 from config import Config
 
+from . import utils
 from .ScryfallApi import scryfall_client as Scryfall
 from .ScryfallApi import fetch_data as fetch
-from ..Gui.QWorkerThread import QWorkerThread
 from .task_executor import TaskExecutor
-from . import utils
+from ..Gui.QWorkerThread import QWorkerThread
 
 class _pHash(metaclass=utils.Singleton):
     @staticmethod
-    def img_to_phash(img:np.ndarray, input_colorspace='BGR', hash_size=32, highfreq_factor=4) -> np.ndarray:
+    def img_to_phash(img:np.ndarray, input_colorspace='BGR', hash_size=32, highfreq_factor=4, crop_scale=1) -> np.ndarray:
         '''
         Calculate the pHash for `img`, grayscaled.
         Image will be resized internally, new image size is calculated as `hash_size * highfreq_factor`
@@ -29,6 +29,9 @@ class _pHash(metaclass=utils.Singleton):
         if img is None:
             return {'hash': np.array(None)}
         
+        if crop_scale < 1:
+            img = utils.crop_scale_img(img, scale=crop_scale)
+
         # convert to grayscale
         if input_colorspace.upper() == 'BGR':
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
