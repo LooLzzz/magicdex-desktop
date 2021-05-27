@@ -21,7 +21,10 @@ This project is at it's very beginning, there is so much more to come.
 ---
 
 Super early demo:  
-https://www.youtube.com/watch?v=f6lEQFBExMo
+https://youtu.be/f6lEQFBExMo
+
+PyQt GUI Demo:  
+https://youtu.be/F9T2ZlaAxXw
 
 ---
 
