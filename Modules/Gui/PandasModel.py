@@ -3,7 +3,8 @@
 # import numpy as np
 import pandas as pd
 from typing import Union
-from pandas.api.types import is_string_dtype, is_numeric_dtype, is_bool_dtype
+from pandas.api.types import is_string_dtype, is_numeric_dtype, is_integer_dtype, is_float_dtype, is_bool_dtype
+# from pandas.core.tools.numeric import to_numeric
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -39,10 +40,15 @@ class PandasModel(QAbstractTableModel):
         return 0
 
     def setData(self, index, value, role):
+        row, col = index.row(), index.column()
         if index.isValid() and role == Qt.EditRole \
-                and index.row() in range(len(self.currentItems))\
-                and index.column() in range(len(self.currentItems.columns)):
-            self.currentItems.iloc[index.row(),index.column()] = value
+                and row in range(len(self.currentItems))\
+                and col in range(len(self.currentItems.columns)):
+            if self.columnName(col) == 'amount' and value < 1:
+                self.currentItems.iloc[row,col] = 1
+            else:
+                self.currentItems.iloc[row,col] = value
+
             self.dataChanged.emit(index, index)
             return True
         return False
@@ -89,14 +95,33 @@ class PandasModel(QAbstractTableModel):
         df = pd.concat([ upper, dup_rows, lower ]).reset_index(drop=True)
         self.setDataFrame(df)
 
-    def data(self, index, role=Qt.DisplayRole):
+    def flags(self, index):
+        flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable
+
+        if index.isValid():
+            row, col = index.row(), index.column()
+            colname = self.columnName(col)
+            if colname == 'amount' \
+                    or colname == 'foil':
+                flags |= Qt.ItemIsEditable
+        
+        return flags
+
+    def data(self, index, role):
         if index.isValid():
             col_data:pd.Series = self.currentItems.iloc[:,index.column()]
+            val = self.currentItems.iloc[index.row(), index.column()]
             if role == Qt.DisplayRole:
-                val = self.currentItems.iloc[index.row(), index.column()]
-                if not is_bool_dtype(col_data):
-                    val = str(val)
-                return val
+                if is_bool_dtype(col_data):
+                    return bool(val)
+                return str(val)
+            elif role == Qt.EditRole:
+                if is_integer_dtype(col_data):
+                    return int(val)
+                elif is_float_dtype(col_data):
+                    return float(val)
+                else:
+                    return str(val)
         return QVariant()
 
     def headerData(self, col, orientation, role):
@@ -158,11 +183,11 @@ class PandasModel(QAbstractTableModel):
                     col = self.dataframe[colname]
                     if is_numeric_dtype(col.dtype) or 'num' in colname:
                         try:
-                            row_flags |= float(val) == col
+                            row_flags = row_flags | (float(val) == col)
                         except ValueError:
                             pass
                     if is_string_dtype(col.dtype):
-                        row_flags |= col.str.lower().str.contains(str(val).lower()) 
+                        row_flags = row_flags | col.str.lower().str.contains(str(val).lower()) 
 
             self.layoutAboutToBeChanged.emit()
             self.currentItems = self.dataframe.loc[row_flags]

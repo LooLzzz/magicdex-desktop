@@ -23,14 +23,18 @@ class MyQTableView(QTableView):
         self.setAlternatingRowColors(True)
         self.setMouseTracking(True)
         
-        # self.setContextMenuPolicy(Qt.CustomContextMenu)
-        # self.customMenuRequested.connect()
-
         self.contextMenuEnabled = contextMenuEnabled
+        self.contextMenuCustomActions = [] # should be a tuple-like list [(txt,action),(...)]
         self.alignment = alignment
-        self.originalItemDelegates = []
+        # self.originalItemDelegates = []
         self.columns = columns
         self.modelLayoutConnection = None
+
+        self.deleteAction = QAction('Delete Selection', self)
+        self.deleteAction.setShortcut('Delete')
+        self.deleteAction.triggered.connect(lambda: self.sourceModel.removeRow(np.unique([ i.row() for i in self.selectionModel().selection().indexes() ])))
+        self.addAction(self.deleteAction)
+
         self.setModel(model)
 
     def setModel(self, model:PandasModel):
@@ -40,13 +44,13 @@ class MyQTableView(QTableView):
         self.sourceModel = model
 
         if self.alignment is not None:
-            self.proxyModel = AlignmentProxyModel(sourceModel=model, alignment=self.alignment)
+            self.proxyModel = self.AlignmentProxyModel(sourceModel=model, alignment=self.alignment)
             super().setModel(self.proxyModel)
         else:
             super().setModel(model)
 
-        if self.originalItemDelegates: # if len(originalItemDelegates) == 0:
-            self.originalItemDelegates = [ self.itemDelegateForColumn(col) for col in range(model.columnCount()) ]
+        # if self.originalItemDelegates: # if len(originalItemDelegates) == 0:
+        #     self.originalItemDelegates = [ self.itemDelegateForColumn(col) for col in range(model.columnCount()) ]
         self.setColumns(self.columns)
 
     def onModelLayoutChanged(self, parents=None, hint:QAbstractTableModel.LayoutChangeHint=None):
@@ -58,21 +62,34 @@ class MyQTableView(QTableView):
 
     def contextMenuEvent(self, event):
         if self.contextMenuEnabled:
-            indexes = np.empty((0,2))
+            # indexes = np.empty((0,2))
             if self.selectionModel().selection().indexes():
                 indexes = np.array(
                     [ (i.row(),i.column()) for i in self.selectionModel().selection().indexes() ]
                 )
             
-            rows = indexes[:,0]
-            cols = indexes[:,1]
+                rows = indexes[:,0]
+                cols = indexes[:,1]
 
-            self.menu = QMenu(self)
-            self.menu.addAction('Remove', lambda: self.sourceModel.removeRow(np.unique(rows)))
-            self.menu.addAction('Duplicate', lambda: self.sourceModel.duplicateRows(np.unique(rows)))
-            
-            self.menu.popup(QCursor.pos())
-            event.accept()
+                self.menu = QMenu(self)
+
+                actions = self.contextMenuCustomActions + [
+                    ('Duplicate Selection', lambda: self.sourceModel.duplicateRows(np.unique(rows))),
+                    self.deleteAction,
+                ]
+
+                for item in actions:
+                    if not item or item == '': # is None or emptyString or emptyIterable
+                        self.menu.addSeparator()
+                    elif isinstance(item, QAction):
+                        self.menu.addAction(item)
+                    elif isinstance(item, (tuple,list)):
+                        self.menu.addAction(*item)
+                    elif isinstance(item, (QMenu,str)):
+                        self.menu.addMenu(item)
+                
+                self.menu.popup(QCursor.pos())
+                event.accept()
 
     def mouseMoveEvent(self, event):
         index = self.indexAt(event.pos())
@@ -85,10 +102,10 @@ class MyQTableView(QTableView):
             columnCount = model.columnCount()
             for col in range(columnCount):
                 colname = model.columnName(col)
-                if hasattr(model, 'columnDtype') and model.columnDtype(col) == bool:
-                    self.setItemDelegateForColumn(col, CheckBoxDelegate())
-                elif self.originalItemDelegates:
-                    self.setItemDelegateForColumn(col, self.originalItemDelegates[col])
+                # if hasattr(model, 'columnDtype') and model.columnDtype(col) == bool:
+                #     self.setItemDelegateForColumn(col, self.CheckBoxDelegate())
+                # elif self.originalItemDelegates:
+                #     self.setItemDelegateForColumn(col, self.originalItemDelegates[col])
 
                 if columns is not None:
                     if colname in columns:
@@ -100,42 +117,36 @@ class MyQTableView(QTableView):
             self.columns = columns
 
 
-class CheckBoxDelegate(QItemDelegate):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    class CheckBoxDelegate(QItemDelegate):
+        def createEditor(self, parent, option, index):
+            return None
 
-    def createEditor(self, parent, option, index):
-        return None
+        def paint(self, painter, option, index):
+            val = index.data()
+            state = Qt.Checked if val else Qt.Unchecked
+            self.drawCheck(painter, option, option.rect, state)
 
-    def paint(self, painter, option, index):
-        val = index.data()
-        state = Qt.Checked if val else Qt.Unchecked
-        self.drawCheck(painter, option, option.rect, state)
+        def editorEvent(self, event, model, option, index):
+            if int(index.flags() & Qt.ItemIsEditable) > 0:
+                if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                    # Change the checkbox-state
+                    self.setModelData(None, model, index)
+                    return True
+            return False
 
-    def editorEvent(self, event, model, option, index):
-        # if not int(index.flags() & Qt.ItemIsEditable) > 0:
-        #     return False
-
-        if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
-            # Change the checkbox-state
-            self.setModelData(None, model, index)
-            return True
-
-        return False
-
-    def setModelData(self, editor, model, index):
-        model.setData(index, not index.data(), Qt.EditRole)
+        def setModelData(self, editor, model, index):
+            model.setData(index, not index.data(), Qt.EditRole)
 
 
-class AlignmentProxyModel(QIdentityProxyModel):
-    def __init__(self, parent=None, sourceModel=None, alignment=Qt.AlignCenter):
-        super().__init__(parent)
-        self.alignment = alignment
-        
-        if sourceModel is not None:
-            self.setSourceModel(sourceModel)
+    class AlignmentProxyModel(QIdentityProxyModel):
+        def __init__(self, parent=None, sourceModel=None, alignment=Qt.AlignCenter):
+            super().__init__(parent)
+            self.alignment = alignment
+            
+            if sourceModel is not None:
+                self.setSourceModel(sourceModel)
 
-    def data(self, index, role):
-        if role == Qt.TextAlignmentRole:
-            return self.alignment
-        return super().data(index, role)
+        def data(self, index, role):
+            if role == Qt.TextAlignmentRole:
+                return self.alignment
+            return super().data(index, role)

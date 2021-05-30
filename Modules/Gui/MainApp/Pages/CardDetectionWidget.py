@@ -56,12 +56,21 @@ class CardDetectionWidget(MyQWidget):
         self.searchbox.submit.connect(self.searchbox.clear, Qt.QueuedConnection)
         vbox_lower.addWidget(self.searchbox, alignment=Qt.AlignBottom)
         
-        self.model = PandasModel()
-        self.tableView = MyQTableView(parent=self, model=self.model, columns=['name','set_name','set_id','amount','foil'], alignment=Qt.AlignCenter)
+        self.model = PandasModel(df=pd.DataFrame(columns=['collector_number','name','set_name','amount','foil']))
+        self.tableView = MyQTableView(parent=self, model=self.model, columns=['collector_number','name','set_name','amount','foil'], alignment=Qt.AlignCenter)
         self.tableView.setAlternatingRowColors(False)
         self.tableView.setSortingEnabled(False)
         self.tableView.hoverIndexChanged.connect(self.onHoverIndexChanged)
         self.tableView.setFixedHeight(252)
+
+        self.tableView.contextMenuCustomActions = [
+            ('Change Set', lambda: print('Change Set')),
+            None, # Seperator
+        ]
+        
+        self.tableView.setItemDelegateForColumn(self.model.columnNamed('foil'), self.tableView.CheckBoxDelegate())
+        # self.tableView.setItemDelegateForColumn(self.model.columnNamed('amount'), self.tableView.ValidatedItemDelegate())
+        
         vbox_lower.addWidget(self.tableView, alignment=Qt.AlignBottom)
 
         self.card_image_label = QLabel()
@@ -136,7 +145,6 @@ class CardDetectionWidget(MyQWidget):
         self.cardDetectionWorker.start()
 
     def searchboxSubmitted(self, card):
-        # print(f'got result from searchbox: {card["name"]}')
         self.addCardsToTableView(card)
         self.setCardImageLabel(card)
         
@@ -151,29 +159,47 @@ class CardDetectionWidget(MyQWidget):
 
         print('result:', cards[['name','set_id']].values.tolist()) # DEBUG
 
-        card_id = cards['card_id']
-        df:pd.DataFrame = self.model.dataframe
+        # cards_id = cards['card_id']
+        df = self.model.dataframe
 
-        if df is None \
-                or df.empty \
-                or ('card_id' in df
-                        and df[df['card_id'].isin(card_id)].empty):
-            # card IS NOT present in the tableview
-            cards['amount'] = 1
-            cards['foil'] = False
-            
-            self.model.insertRow(-1, cards)            
-            select_rows = [self.model.rowCount()-1]
-        else:
-            # card IS present in the tableview
-            card_rows = df[df['card_id'].isin(card_id)]
-            df.loc[card_rows.index[-1], 'amount'] += 1
-            self.model.setDataFrame(df)
-            select_rows = card_rows.index.tolist()
+        if df is None:
+            df = pd.DataFrame(columns=['card_id'])
+        elif 'card_id' not in df:
+            df['card_id'] = None
         
-        for r in select_rows:
-            self.tableView.selectRow(r)
-            self.tableView.scrollTo(self.tableView.model().index(r, 0))
+        new_cards = cards[ ~ cards['card_id'].isin(df['card_id']) ]
+        old_cards = cards[ cards['card_id'].isin(df['card_id']) ]
+
+        if not new_cards.empty:
+            # cards THAT ARE NOT present in the tableview
+            new_cards['amount'] = 1
+            new_cards['foil'] = False
+            
+            self.model.insertRow(-1, new_cards)
+            select_rows = [self.model.rowCount()-1]
+            df = self.model.dataframe
+        
+        if not old_cards.empty:
+            # card THAT ARE ALREADY present in the tableview
+            cards_row = df[df['card_id'].isin(old_cards['card_id'])]
+            df.loc[cards_row.index, 'amount'] += 1
+            self.model.setDataFrame(df)
+            select_rows = cards_row.index.tolist()
+        
+        # self.tableView.clearSelection()
+        self.tableView.selectionModel().clearSelection()
+
+        indexes = [ self.tableView.model().index(i, 0) for i in select_rows ]
+        mode = QItemSelectionModel.Select | QItemSelectionModel.Rows
+        for index in indexes:
+            self.tableView.selectionModel().select(index, mode)
+
+        # self.setSelectionMode(QAbstractItemView.MultiSelection)
+        # for i in select_rows:
+        #     self.tableView.selectRow(i)
+        # self.setSelectionMode(QAbstractItemView.SingleSelection)
+        
+        self.tableView.scrollTo(self.tableView.model().index(min(select_rows), 0))
 
 
     def onHoverIndexChanged(self, index:QModelIndex):
@@ -202,7 +228,7 @@ class CardDetectionWidget(MyQWidget):
                                 )
         self.cardDetectionWorker.start()
         # CardDetection.detect_video(self.capture, display=False, debug=False, filtering=False, callback=self.getDetectionResults, rotation_flag=self.rotation_flag)
-        # CardDetection.detect_video(self.capture, display=True, debug=False, filtering=False, callback=self.getDetectionResults, rotation_flag=self.rotation_flag)
+        # CardDetection.detect_video(self.capture, display=True, debug=True, filtering=False, callback=self.getDetectionResults, rotation_flag=self.rotation_flag)
 
         self.isRunning = True
 
