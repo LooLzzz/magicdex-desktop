@@ -102,6 +102,10 @@ class _pHash(metaclass=utils.Singleton):
                 item['r_classes'] = r_classes[0]
                 item['image_url'] = item['image_uris']['border_crop']
                 progress_bar.update(n=1)
+            
+            # vals = [ c.values for c in cards ]
+            # cols = cards[0].index
+            # return pd.DataFrame(vals, columns=cols)#.rename(columns={'id':'card_id','set':'set_id'})
             return pd.DataFrame(cards)#.rename(columns={'id':'card_id','set':'set_id'})
         ##############################
         ##############################

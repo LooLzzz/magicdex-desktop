@@ -17,13 +17,13 @@ class RootWindow(QMainWindow):
         self.console_window.setGeometry(800, 275, 800, 220)
         self.closeSignal.connect(self.console_window.close)
         
-        #DEBUG
+        # DEBUG
         mainAppWidget = MainAppWidget(self, self) 
         mainAppWidget.showPage('mainMenu')
         # mainAppWidget.showPage('cardDetection')
         # mainAppWidget.showPage('pHash')
         self.setCentralWidget(mainAppWidget)
-        #DEBUG
+        # DEBUG
 
         # loginWidget = LoginWidget(self, self)
         # self.setCentralWidget(loginWidget)

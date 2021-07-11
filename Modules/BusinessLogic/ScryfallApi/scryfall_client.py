@@ -184,6 +184,7 @@ def get_bulk_data(bulk_type='default_cards', to_file=False, subdir=None, filenam
     
     print('converting downloaded json to DataFrame..') #DEBUG        
     res_df = pd.DataFrame(json.loads(frame)) \
+        .drop(columns=['set_id']) \
         .rename(columns={'id':'card_id', 'set':'set_id'}) \
         .sort_index(axis=1)
         # .set_index('card_id', drop=True)

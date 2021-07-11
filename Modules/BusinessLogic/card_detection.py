@@ -147,16 +147,29 @@ def detect_video(capture, display=False, debug=False, filtering=False, rotation_
         for cnt in cnts:
             pts = utils.cnt_to_pts(cnt)
             img_warp = utils.four_point_transform(img, pts)
-            phash_value = pHash.img_to_phash(img_warp, crop_scale=0.95) # crop 5% of image outer boundaries
+
+            # crop 5% of image outer boundaries
+            # phash_value = [
+            #     pHash.img_to_phash(img_warp, crop_scale=0.95),
+            #     pHash.img_to_phash(cv2.rotate(img_warp, cv2.ROTATE_180), crop_scale=0.95),
+            # ]
+            phash_value = pHash.img_to_phash(img_warp, crop_scale=0.95)
             min_diff = threshold+1
 
             if len(prev_det_cards) > 0:
-                prev_det_cards['hash_diff'] = prev_det_cards['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
-                min_diff = min(prev_det_cards['hash_diff'])
+                prev_det_cards['hash_diff'] = prev_det_cards['phash'].apply(
+                    lambda x: np.count_nonzero(x != phash_value)
+                    # lambda x: np.min([
+                    #     np.count_nonzero(x != phash_value[0]),
+                    #     np.count_nonzero(x != phash_value[1])
+                    # ])
+                )
+                min_card_index = prev_det_cards['hash_diff'].argmin()
+                min_diff = prev_det_cards.loc[min_card_index, 'hash_diff']
             
             # check if the located card image matches to a previously detected card
             if min_diff < threshold:
-                min_card = prev_det_cards[prev_det_cards['hash_diff'] == min_diff].iloc[0]
+                min_card = prev_det_cards.iloc[min_card_index]
             else:
                 if filtering:
                     clr_classes = utils.get_color_class(img_warp, eps=0.2, normalize_hsv=True)
@@ -167,19 +180,28 @@ def detect_video(capture, display=False, debug=False, filtering=False, rotation_
                     ].copy()
                 else:
                     df_filtered = df
-                df_filtered['hash_diff'] = df_filtered['phash'].apply(lambda x: np.count_nonzero(x != phash_value))
-                min_diff = min(df_filtered['hash_diff'])
-                min_card = df_filtered[df_filtered['hash_diff'] == min_diff].iloc[0]
-            
-            det_cards += [{
-                'name': min_card['name'],
-                'set_id': min_card['set_id'],
-                'card_id': min_card['card_id'],
-                'cnt': cnt,
-                'img_warp': img_warp,
-                'hash_diff': min_diff,
-                'phash': phash_value
-            }]
+                
+                df_filtered['hash_diff'] = df_filtered['phash'].apply(
+                    lambda x: np.count_nonzero(x != phash_value)
+                    # lambda x: np.min([
+                    #     np.count_nonzero(x != phash_value[0]),
+                    #     np.count_nonzero(x != phash_value[1])
+                    # ])
+                )
+                min_card_index = df_filtered['hash_diff'].argmin()
+                min_card = df_filtered.iloc[min_card_index]
+                min_diff = df_filtered.loc[min_card_index, 'hash_diff']
+
+            if min_diff < threshold:
+                det_cards += [{
+                    'name': min_card['name'],
+                    'set_id': min_card['set_id'],
+                    'card_id': min_card['card_id'],
+                    'cnt': cnt,
+                    'img_warp': img_warp,
+                    'hash_diff': min_card['hash_diff'],
+                    'phash': phash_value
+                }]
         
         elapsed_ms = (time.time() - start_time) * 1000
         if debug:
