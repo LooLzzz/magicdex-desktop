@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QApplication
 
 from Modules import RootWindow
 
-load_dotenv('dotenv')
+load_dotenv('.env')
 
 def except_hook(cls, exception, traceback):
     sys.__excepthook__(cls, exception, traceback)

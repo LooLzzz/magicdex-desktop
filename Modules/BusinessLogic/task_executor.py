@@ -37,7 +37,7 @@ class TaskExecutor(ThreadPoolExecutor):
         `delay` (optional) delay in seconds between tasks.
         '''
         delayed_task = self._delayed(task, delay)
-        res = super().submit(fn=delayed_task, *args, **kwargs)
+        res = super().submit(delayed_task, *args, **kwargs)
         self.futures += [res]
         # self.futures.append(res)
         return res

@@ -1,6 +1,10 @@
 import os
 
 class Config:
+    API_HOSTNAME = 'https://magicdex-server.herokuapp.com'
+    # API_HOSTNAME = 'http://127.0.0.1:5000'
+    documents_path = os.path.join(os.path.expanduser('~'), '.magicdex')
+    
     root_path = os.path.realpath(os.path.join(__file__, '..'))
     data_path = os.path.join(root_path, 'data')
     

@@ -1,5 +1,5 @@
-import os, bcrypt
-from pymongo import MongoClient
+import os #, bcrypt
+# from pymongo import MongoClient
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -7,6 +7,7 @@ from PyQt5.QtGui import *
 from ..QWorkerThread import QWorkerThread
 from ..BaseWidgets.MyQWidget import MyQWidget
 from ..MainApp.MainAppWidget import MainAppWidget
+from ...Api.auth import AuthApi
 
 class LoginWidget(MyQWidget):
     def __init__(self, parent, root_window:QMainWindow):
@@ -35,6 +36,10 @@ class LoginWidget(MyQWidget):
         hbox.addWidget(self.password_feedback)
         form_layout.addRow('Password:', hbox)
 
+        self.checkbox_remember_me = QCheckBox('Remember me')
+        self.checkbox_remember_me.setChecked(True)
+        layout.addWidget(self.checkbox_remember_me, alignment=Qt.AlignRight)
+        
         self.btn_login = QPushButton('login')
         self.btn_login.clicked.connect(self.onClickLogin)
         layout.addWidget(self.btn_login)
@@ -68,22 +73,8 @@ class LoginWidget(MyQWidget):
         event.accept()
 
     def onClickLogin(self):
-        def _login_task(username, password):
-            import certifi
-            mongo_uri = os.environ.get('MONGO_READ_URI')
-            client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-
-            db = client['mtg-draftsim']
-            users = db['users']
-
-            user = users.find_one({'username': username})
-            if user is None:
-                return False
-
-            password = password.encode('utf8')
-            password_hash = user['password'].encode('utf8')
-            flag = bcrypt.checkpw(password, password_hash)
-            return flag
+        # def _login_task(username, password):
+        #     return login(username, password)
 
         if not self.username_input.isEnabled() \
                 or not self.password_input.isEnabled():
@@ -91,17 +82,19 @@ class LoginWidget(MyQWidget):
             return
         
         self.username_feedback.setText(' ')
-        self.password_feedback.setText(' ')       
+        self.password_feedback.setText(' ')
 
         if self.validateLoginInfo():
             self.username_input.setDisabled(True)
             self.password_input.setDisabled(True)
+            self.checkbox_remember_me.setDisabled(True)
             self.root_window.statusBar().showMessage('Logging in..', -1)
             
-            self.worker = QWorkerThread(self, _login_task, self.username_input.text(), self.password_input.text())
+            self.worker = QWorkerThread(self, AuthApi.Login, self.username_input.text(), self.password_input.text(), self.checkbox_remember_me.isChecked())
             self.worker.results.connect(self.getWorkerResults)
             self.worker.start()
             # _login_task(self.username_input.text(), self.password_input.text())
+            # AuthApi.Login(self.username_input.text(), self.password_input.text(), self.checkbox_remember_me.isChecked())
     
     def getWorkerResults(self, flag:bool):
         if flag:
@@ -114,6 +107,7 @@ class LoginWidget(MyQWidget):
             self.username_input.setDisabled(False)
             self.password_input.setDisabled(False)
             self.password_input.clear()
+            self.checkbox_remember_me.setDisabled(False)
     
 
     def startMainAppWidget(self):

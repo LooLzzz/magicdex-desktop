@@ -113,6 +113,7 @@ class _pHash(metaclass=utils.Singleton):
         cols = ['name', 'card_id', 'collector_number', 'set_name', 'set_id', 'released_at', 'image_url', 'phash', 'b_classes', 'g_classes', 'r_classes']
         # cols = ['name', 'id', 'released_at', 'face', 'image_url', 'phash', 'b_classes', 'g_classes', 'r_classes']
         phash_df = pd.DataFrame(columns=cols) # init an empty df
+        # task_master = TaskExecutor(max_workers=1) #DEBUG
         task_master = TaskExecutor(max_workers=max_workers) # init task pool
         concat_flag = False # a flag for changing tqdm from 'phash pipeline' to 'concating results'
 
@@ -172,7 +173,7 @@ class _pHash(metaclass=utils.Singleton):
             # load the pickle if it already exists
             obj = None
             with open(filepath, 'rb') as f_in:
-                obj = pickle.load(f_in)
+                obj = pickle.load(file=f_in)
         
             self.phash_df = obj['data'].copy()
             # dupes = self.phash_df.drop_duplicates(subset='name', keep='first', inplace=True)

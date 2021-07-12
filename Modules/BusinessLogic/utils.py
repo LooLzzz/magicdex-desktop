@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 # from PIL import Image
 # from colorthief import ColorThief
-import fast_colorthief
+# import fast_colorthief
 
 from config import Config
 
@@ -179,7 +179,9 @@ def get_image_color(img, quality=1, color_correction=True):
 
         img = img_corrected
 
-    res = fast_colorthief.get_dominant_color(cv2.cvtColor(img, cv2.COLOR_BGR2RGBA), quality)
+    # res = fast_colorthief.get_dominant_color(cv2.cvtColor(img, cv2.COLOR_BGR2RGBA), quality)
+    # res = [ np.round(np.mean(ch)) for ch in cv2.split(img) ]
+    res = np.round([ np.mean(ch) for ch in cv2.split(img) ])
     return res
 
 def get_color_class(img=None, color:tuple=None, num_of_classes=4, eps=0.2, **kwargs): #method='dominant', colorspace_output='BGR', normalize_hsv):
