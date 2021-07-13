@@ -13,12 +13,13 @@ from tqdm import tqdm
 from config import Config
 _base_url = 'https://api.scryfall.com'
 
-def use_api(path:str, literal=None, **kwargs):
+def use_api(path:str, show_pbar=True, **kwargs):
     '''
     Freely use scryfall's api at https://api.scryfall.com
     
     ## Input
     `path` - request path/type \n
+    `show_pbar` - show tqdm's progress bar
     `literal` - pass a literal scryfall query string (Optional) \n
     `**kwargs` - enter any valid scryfall fields, for a 'not' operator use '_' \n
     ---
@@ -58,8 +59,8 @@ def use_api(path:str, literal=None, **kwargs):
     def _gen_full_url():
         _path = path.strip('/?')
 
-        if literal is not None:            
-            _literal = literal.strip('/?')
+        if 'literal' in kwargs:
+            _literal = kwargs['literal'].strip('/?')
             return f'{_base_url}/{_path}/?{_literal}'
         elif len(kwargs) == 0:
             return f'{_base_url}/{_path}'
@@ -92,7 +93,7 @@ def use_api(path:str, literal=None, **kwargs):
     res = None
 
     # get cards dataset as json from query
-    with tqdm(total=None, unit='card', ascii=False, file=sys.stdout, unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+    with tqdm(total=None, unit='card', ascii=False, file=sys.stdout if show_pbar else None, unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
         while has_more:
             response = requests.get(url)
             response.raise_for_status() # will raise for anything other than 1xx or 2xx

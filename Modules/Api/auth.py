@@ -13,22 +13,18 @@ class AuthApi():
                 obj = json.load(fp)
             
             if 'access-token' in obj:
-                url = cls.API_ENDPOINT
-                # headers = {'access-token': obj['access-token']}
-                # Authorization: Bearer
+                url = f'{cls.API_ENDPOINT}/jwt'
                 headers = {'Authorization': f'Bearer {obj["access-token"]}'}
                 res = requests.get(url, headers=headers)
-                
                 body = json.loads(res.content)
+                
                 if 'username' in body:
                     return body['username']
-                
-
         return False
 
     @classmethod
     def Login(cls, username, password, save_jwt=True):
-        url = f'{cls.API_ENDPOINT}/login'
+        url = f'{cls.API_ENDPOINT}/users'
         body = {
             'username': username,
             'password': password
@@ -46,5 +42,5 @@ class AuthApi():
     
     @classmethod
     def Register(cls, username, password):
-        url = f'{AuthApi.API_ENDPOINT}/register'
+        url = f'{AuthApi.API_ENDPOINT}/users'
         pass

@@ -56,8 +56,9 @@ class CardDetectionWidget(MyQWidget):
         self.searchbox.submit.connect(self.searchbox.clear, Qt.QueuedConnection)
         vbox_lower.addWidget(self.searchbox, alignment=Qt.AlignBottom)
         
-        self.model = PandasModel(df=pd.DataFrame(columns=['collector_number','name','set_name','amount','foil']))
-        self.tableView = MyQTableView(parent=self, model=self.model, columns=['collector_number','name','set_name','amount','foil'], alignment=Qt.AlignCenter)
+        _cols = ['collector_number','name','set_name','amount','foil','price']
+        self.model = PandasModel(df=pd.DataFrame(columns=_cols), enable_tooltip=True)
+        self.tableView = MyQTableView(parent=self, model=self.model, columns=_cols, alignment=Qt.AlignCenter)
         self.tableView.setAlternatingRowColors(False)
         self.tableView.setSortingEnabled(False)
         self.tableView.hoverIndexChanged.connect(self.onHoverIndexChanged)

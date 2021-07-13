@@ -1,4 +1,4 @@
-import sys, os, requests, cv2
+import sys, os, requests, json, cv2
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -10,6 +10,7 @@ from .. import utils
 from . import scryfall_client as Scryfall
 from ..task_executor import TaskExecutor
 
+_base_url = 'https://api.scryfall.com'
 
 def load_all(df_type:str, to_file=False, *args, **kwargs):
     '''
@@ -119,8 +120,28 @@ def fetch_card_images(cards_df:pd.DataFrame, limit_n=None, limit_frac=None, max_
             else:
                 raise err
     return res
-    
 
+def fetch_card_prices(cards_df):
+    if isinstance(cards_df, pd.Series):
+        cards_df = pd.DataFrame(cards_df).T
+    
+    url = f'{_base_url}/cards/collection'
+    body = {
+        'identifiers': []
+    }
+    
+    for i,card in cards_df.iterrows():
+        if 'card_id' in card:
+            body['identifiers'] += [ {'id': card['card_id']} ]
+        else:
+            body['identifiers'] += [ {'name': card['name'], 'set': card['set_id']} ]
+
+    res = requests.post(url, json=body)
+    res = json.loads(res.content)
+    data = pd.DataFrame(res['data'], columns=['id', 'set', 'name', 'foil', 'prices']) \
+            .rename(columns = {'id':'card_id', 'set':'set_id'})
+
+    return data
 
 #######################################################################################
 

@@ -9,11 +9,14 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
+from ..BusinessLogic.ScryfallApi.fetch_data import fetch_card_prices
+
 class PandasModel(QAbstractTableModel):
     CompleterRole = Qt.ItemDataRole.UserRole + 1
 
-    def __init__(self, parent=None, df=None):
+    def __init__(self, parent=None, df=None, enable_tooltip=False):
         super().__init__(parent)
+        self.enable_tooltip = enable_tooltip
         self.dataframe = df
         self.currentItems = df
         self.filterKwargs = {}
@@ -45,11 +48,18 @@ class PandasModel(QAbstractTableModel):
                 and row in range(len(self.currentItems))\
                 and col in range(len(self.currentItems.columns)):
             if self.columnName(col) == 'amount' and value < 1:
-                self.currentItems.iloc[row,col] = 1
+                self.currentItems.iloc[row, col] = 1
+                self.dataChanged.emit(index, index)
+            elif self.columnName(col) == 'foil':
+                self.currentItems.iloc[row, col] = value
+                self.currentItems.loc[row, 'price'] = None
+                price_index = self.index(row, self.columnNamed('price'))
+                self.dataChanged.emit(index, price_index)
+                # self.dataChanged.emit(price_index, price_index)
             else:
-                self.currentItems.iloc[row,col] = value
+                self.currentItems.iloc[row, col] = value
+                self.dataChanged.emit(index, index)
 
-            self.dataChanged.emit(index, index)
             return True
         return False
 
@@ -109,26 +119,39 @@ class PandasModel(QAbstractTableModel):
 
     def data(self, index, role):
         if index.isValid():
-            col_data:pd.Series = self.currentItems.iloc[:,index.column()]
-            val = self.currentItems.iloc[index.row(), index.column()]
+            col_data:pd.Series = self.currentItems.iloc[:, index.column()]
+            row_data:pd.Series = self.currentItems.iloc[index.row()]
+            cell_value = self.currentItems.iloc[index.row(), index.column()]
+
             if role == Qt.DisplayRole:
                 if is_bool_dtype(col_data):
-                    return bool(val)
-                return str(val)
+                    return bool(cell_value)
+                if col_data.name == 'price':
+                    if pd.isna(cell_value):
+                        res = fetch_card_prices(row_data).iloc[0]
+                        price = res['prices']['usd_foil'] if row_data['foil'] else res['prices']['usd']
+                        self.currentItems.loc[index.row(), 'price'] = cell_value = float(price) if price else -1.0
+                    return '-' if cell_value < 0 else f'{cell_value*row_data["amount"]:.2f}$'
+                return str(cell_value)
             elif role == Qt.EditRole:
                 if is_integer_dtype(col_data):
-                    return int(val)
-                elif is_float_dtype(col_data):
-                    return float(val)
-                else:
-                    return str(val)
+                    return int(cell_value)
+                if is_float_dtype(col_data):
+                    return float(cell_value)
+                return str(cell_value)
+            elif role == Qt.ToolTipRole and self.enable_tooltip:
+                if not pd.isna(row_data['price']) and row_data['price'] >= 0:
+                    return f'{row_data["name"]} {row_data["price"]:.2f}$'
         return QVariant()
 
     def headerData(self, col, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return str(self.currentItems.columns[col]) \
-                    .replace('_', ' ') \
-                    .title()
+            colname = str(self.currentItems.columns[col]) \
+                        .replace('_', ' ') \
+                        .title()
+            if colname == 'Collector Number':
+                return 'Collector No.'
+            return colname
         return QVariant()
 
     def sort(self, column, order):
