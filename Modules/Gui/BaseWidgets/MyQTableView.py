@@ -126,16 +126,17 @@ class MyQTableView(QTableView):
             state = Qt.Checked if val else Qt.Unchecked
             self.drawCheck(painter, option, option.rect, state)
 
+        # def setModelData(self, editor, model, index):
+        #     model.setData(index, not index.data(), Qt.EditRole)
+
         def editorEvent(self, event, model, option, index):
             if int(index.flags() & Qt.ItemIsEditable) > 0:
                 if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                     # Change the checkbox-state
-                    self.setModelData(None, model, index)
+                    # self.setModelData(None, model, index)
+                    model.setData(index, not index.data(), Qt.EditRole)
                     return True
             return False
-
-        def setModelData(self, editor, model, index):
-            model.setData(index, not index.data(), Qt.EditRole)
 
 
     class AlignmentProxyModel(QIdentityProxyModel):

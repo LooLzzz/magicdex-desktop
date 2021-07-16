@@ -4,15 +4,13 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-from ..QWorkerThread import QWorkerThread
-from ..BaseWidgets.MyQWidget import MyQWidget
-from ..MainApp.MainAppWidget import MainAppWidget
-from ...Api.auth import AuthApi
+from ...QWorkerThread import QWorkerThread
+from ...BaseWidgets.MyQWidget import MyQWidget
+from ....Api.auth import AuthApi
 
 class LoginWidget(MyQWidget):
     def __init__(self, parent, root_window:QMainWindow):
         super().__init__(parent, root_window)
-        self.root_window.statusBar().showMessage('')
 
         layout = QVBoxLayout()
         form_layout = QFormLayout()
@@ -43,13 +41,29 @@ class LoginWidget(MyQWidget):
         self.btn_login = QPushButton('login')
         self.btn_login.clicked.connect(self.onClickLogin)
         layout.addWidget(self.btn_login)
-    
+
     def onShow(self):
-        self.root_window.setWindowFlags(Qt.MSWindowsFixedSizeDialogHint)
+        # self.root_window.setWindowFlags(Qt.Window | Qt.MSWindowsFixedSizeDialogHint)
         self.root_window.setWindowTitle('Login')
         self.root_window.resize(280, 115)
-        # self.root_window.setFixedSize(325, 150)
+        # self.root_window.setFixedSize(280, 160)
         # self.root_window.setFixedSize(self.root_window.minimumSizeHint())
+        
+        self.root_window.menuBar().setVisible(False)
+
+        self.username_feedback.setText(' ')
+        self.password_feedback.setText(' ')
+        self.username_input.clear()
+        self.password_input.clear()
+        self.checkbox_remember_me.setChecked(True)
+        
+        self.username_input.setEnabled(True)
+        self.password_input.setEnabled(True)
+        self.checkbox_remember_me.setEnabled(True)
+        self.btn_login.setEnabled(True)
+
+    def onHide(self):
+        self.root_window.menuBar().setVisible(True)
 
     def validateLoginInfo(self):
         '''
@@ -76,8 +90,7 @@ class LoginWidget(MyQWidget):
         # def _login_task(username, password):
         #     return login(username, password)
 
-        if not self.username_input.isEnabled() \
-                or not self.password_input.isEnabled():
+        if not self.btn_login.isEnabled():
             # do nothing, the login button was already pressed
             return
         
@@ -85,9 +98,10 @@ class LoginWidget(MyQWidget):
         self.password_feedback.setText(' ')
 
         if self.validateLoginInfo():
-            self.username_input.setDisabled(True)
-            self.password_input.setDisabled(True)
-            self.checkbox_remember_me.setDisabled(True)
+            self.username_input.setEnabled(False)
+            self.password_input.setEnabled(False)
+            self.checkbox_remember_me.setEnabled(False)
+            self.btn_login.setEnabled(False)
             self.root_window.statusBar().showMessage('Logging in..', -1)
             
             self.worker = QWorkerThread(self, AuthApi.Login, self.username_input.text(), self.password_input.text(), self.checkbox_remember_me.isChecked())
@@ -104,14 +118,16 @@ class LoginWidget(MyQWidget):
             # self.root_window.close()
         else:
             self.root_window.statusBar().showMessage('Failed', 2000)
-            self.username_input.setDisabled(False)
-            self.password_input.setDisabled(False)
+            self.username_input.setEnabled(True)
+            self.password_input.setEnabled(True)
             self.password_input.clear()
-            self.checkbox_remember_me.setDisabled(False)
+            self.checkbox_remember_me.setEnabled(True)
+            self.btn_login.setEnabled(True)
     
 
     def startMainAppWidget(self):
-        mainWidget = MainAppWidget(self.root_window, self.root_window)
-        self.root_window.setCentralWidget(mainWidget)
-        self.root_window.setWindowFlags(Qt.Window)
-        self.root_window.show()
+        self.parent().showPage('mainMenu')
+        # mainWidget = MainAppWidget(self.root_window, self.root_window)
+        # self.root_window.setCentralWidget(mainWidget)
+        # self.root_window.setWindowFlags(Qt.Window)
+        # self.root_window.show()

@@ -121,6 +121,7 @@ def use_api(path:str, show_pbar=True, **kwargs):
     # Convert res into a dataframe/series
     try:
         res = res \
+                .drop(columns=['set_id']) \
                 .rename(columns={'id':'card_id','set':'set_id'}) \
                 .sort_index(axis=1)
         # if 'set' in res:
@@ -132,6 +133,7 @@ def use_api(path:str, show_pbar=True, **kwargs):
         #     res = res.iloc[0]
     except ValueError:
         res = pd.DataFrame(res) \
+                .drop(columns=['set_id']) \
                 .rename(columns={'id':'card_id','set':'set_id'}) \
                 .sort_index(axis=1)
     return res

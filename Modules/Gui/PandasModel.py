@@ -9,7 +9,8 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-from ..BusinessLogic.ScryfallApi.fetch_data import fetch_card_prices
+from ..Gui.QWorkerThread import QWorkerThread
+from ..BusinessLogic.ScryfallApi import fetch_data as fetch
 
 class PandasModel(QAbstractTableModel):
     CompleterRole = Qt.ItemDataRole.UserRole + 1
@@ -52,10 +53,11 @@ class PandasModel(QAbstractTableModel):
                 self.dataChanged.emit(index, index)
             elif self.columnName(col) == 'foil':
                 self.currentItems.iloc[row, col] = value
-                self.currentItems.loc[row, 'price'] = None
-                price_index = self.index(row, self.columnNamed('price'))
-                self.dataChanged.emit(index, price_index)
-                # self.dataChanged.emit(price_index, price_index)
+                self.dataChanged.emit(index, index)
+                if 'price' in self.currentItems.columns:
+                    self.currentItems.loc[row, 'price'] = None
+                    price_index = self.index(row, self.columnNamed('price'))
+                    self.dataChanged.emit(price_index, price_index)
             else:
                 self.currentItems.iloc[row, col] = value
                 self.dataChanged.emit(index, index)
@@ -117,7 +119,23 @@ class PandasModel(QAbstractTableModel):
         
         return flags
 
+
     def data(self, index, role):
+        def _card_price_callback(res):
+            idx = []
+            for _,card in res.iterrows():
+                i = self.dataframe.index[ (self.dataframe['card_id'] == card['card_id']) & (self.dataframe['foil'] == card['foil']) ]
+                self.dataframe.loc[i, 'price'] = card['price']
+
+                idx += i.values.tolist()
+            
+            # idx = self.dataframe.index[ self.dataframe['card_id'].isin(res['card_id']) ]
+            # self.dataframe.loc[idx, 'price'] = res['price'].values
+            idx_topleft  = self.index( min(idx), self.columnNamed('price') )
+            idx_botright = self.index( max(idx), self.columnNamed('price') )
+            self.dataChanged.emit(idx_topleft, idx_botright)
+        ########################################################
+
         if index.isValid():
             col_data:pd.Series = self.currentItems.iloc[:, index.column()]
             row_data:pd.Series = self.currentItems.iloc[index.row()]
@@ -128,10 +146,11 @@ class PandasModel(QAbstractTableModel):
                     return bool(cell_value)
                 if col_data.name == 'price':
                     if pd.isna(cell_value):
-                        res = fetch_card_prices(row_data).iloc[0]
-                        price = res['prices']['usd_foil'] if row_data['foil'] else res['prices']['usd']
-                        self.currentItems.loc[index.row(), 'price'] = cell_value = float(price) if price else -1.0
-                    return '-' if cell_value < 0 else f'{cell_value*row_data["amount"]:.2f}$'
+                        worker = QWorkerThread(parent=self, task=fetch.fetch_card_prices, cards_df=row_data)
+                        worker.results.connect(_card_price_callback)
+                        worker.finished.connect(worker.deleteLater)
+                        worker.start()
+                    return f'{cell_value*row_data["amount"]:.2f}$' if pd.notna(cell_value) and cell_value > 0 else '-'
                 return str(cell_value)
             elif role == Qt.EditRole:
                 if is_integer_dtype(col_data):

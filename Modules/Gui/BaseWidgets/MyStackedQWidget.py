@@ -33,11 +33,11 @@ class MyStackedQWidget(QStackedWidget):
             if _pageName == pageName:
                 return _pageWidget
 
-    def onPageChange(self, i):        
+    def onPageChange(self, i):
         _,prevPage = self.pageStack[self.prevIndex]
-        prevPage.onHide()
-        
         _,currPage = self.pageStack[i]
+        
+        prevPage.onHide() if self.prevIndex >= 0 else None
         currPage.onShow()
         
         self.prevIndex = self.currentIndex()

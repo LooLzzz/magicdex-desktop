@@ -2,34 +2,35 @@ import sys
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from .Login.LoginWidget import LoginWidget
+from ..Api.auth import AuthApi
 from .MainApp.ConsoleWindow import ConsoleWindow
 from .MainApp.MainAppWidget import MainAppWidget
-from ..Api.auth import AuthApi
 
 class RootWindow(QMainWindow):
     closeSignal = pyqtSignal(QEvent)
 
     def __init__(self):
         super().__init__()
+        self.setMinimumSize(280, 140)
+        self.setMaximumSize(2000, 2000)
         self.setGeometry(500, 125, 10, 10) # x, y, w, h
-        
+
         self.console_window = ConsoleWindow()
         self.console_window.setGeometry(800, 275, 800, 220)
         self.closeSignal.connect(self.console_window.close)
         
+        self.setWindowFlags(Qt.MSWindowsFixedSizeDialogHint)
+
+        mainAppWidget = MainAppWidget(self, self)
+        self.setCentralWidget(mainAppWidget)
+        
         username = AuthApi.CheckJWT()
         if username:
-            mainAppWidget = MainAppWidget(self, self) 
             mainAppWidget.showPage('mainMenu')
-            # mainAppWidget.showPage('cardDetection')
-            # mainAppWidget.showPage('pHash')
-            self.setCentralWidget(mainAppWidget)
-            self.statusBar().showMessage(f'Welcome back {username}', 4000)
+            self.statusBar().showMessage(f'Welcome back {username}', 5000)
         else:
-            loginWidget = LoginWidget(self, self)
-            self.setCentralWidget(loginWidget)
-            loginWidget.onShow()
+            mainAppWidget.showPage('login')
+            self.statusBar().showMessage('')
 
     def closeEvent(self, event):
         try:

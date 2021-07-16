@@ -139,7 +139,13 @@ def fetch_card_prices(cards_df):
     res = requests.post(url, json=body)
     res = json.loads(res.content)
     data = pd.DataFrame(res['data'], columns=['id', 'set', 'name', 'foil', 'prices']) \
-            .rename(columns = {'id':'card_id', 'set':'set_id'})
+            .rename(columns = {'id':'card_id', 'set':'set_id', 'prices':'price'})
+    data['foil'] = cards_df['foil'].values if 'foil' in cards_df else False
+    idx = ( i for i in data.index ) # index generator
+    data['price'] = data['price'] \
+            .apply( lambda x: x['usd_foil'] if data.loc[next(idx), 'foil'] else x['usd'] ) \
+            .astype(float) \
+            .fillna(-1.0)
 
     return data
 

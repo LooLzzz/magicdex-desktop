@@ -20,7 +20,22 @@ class AuthApi():
                 
                 if 'username' in body:
                     return body['username']
+                else:
+                    # delete token's file if authentication failed
+                    cls.DeleteToken()
         return False
+
+    @classmethod
+    def DeleteToken(cls):
+        '''
+        delete token file, located in: `{Config.documents_path}/access-token.json`
+        '''
+        try:
+            if os.path.exists(cls.TOKEN_PATH):
+                os.remove(cls.TOKEN_PATH)
+            return True
+        except:
+            return False
 
     @classmethod
     def Login(cls, username, password, save_jwt=True):

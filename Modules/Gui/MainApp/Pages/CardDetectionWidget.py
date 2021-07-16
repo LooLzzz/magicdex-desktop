@@ -62,7 +62,7 @@ class CardDetectionWidget(MyQWidget):
         self.tableView.setAlternatingRowColors(False)
         self.tableView.setSortingEnabled(False)
         self.tableView.hoverIndexChanged.connect(self.onHoverIndexChanged)
-        self.tableView.setFixedHeight(252)
+        self.tableView.setFixedHeight(235)
 
         self.tableView.contextMenuCustomActions = [
             ('Change Set', lambda: print('Change Set')),
@@ -91,7 +91,7 @@ class CardDetectionWidget(MyQWidget):
         self.rotate_frame.setHidden(True)
         vbox.addWidget(self.rotate_btn)
         self.rotate_frame.setLayout(vbox)
-    
+
     def onShow(self):
         self.root_window.setWindowTitle('Card Detection')
         self.root_window.resize(800, 835)
@@ -175,14 +175,15 @@ class CardDetectionWidget(MyQWidget):
             # cards THAT ARE NOT present in the tableview
             new_cards['amount'] = 1
             new_cards['foil'] = False
-            
+            new_cards['price'] = None
+
             self.model.insertRow(-1, new_cards)
             select_rows = [self.model.rowCount()-1]
             df = self.model.dataframe
         
         if not old_cards.empty:
             # card THAT ARE ALREADY present in the tableview
-            cards_row = df[df['card_id'].isin(old_cards['card_id'])]
+            cards_row = df[ df['card_id'].isin(old_cards['card_id']) ]
             df.loc[cards_row.index, 'amount'] += 1
             self.model.setDataFrame(df)
             select_rows = cards_row.index.tolist()
@@ -190,9 +191,9 @@ class CardDetectionWidget(MyQWidget):
         # self.tableView.clearSelection()
         self.tableView.selectionModel().clearSelection()
 
-        indexes = [ self.tableView.model().index(i, 0) for i in select_rows ]
+        indices = [ self.tableView.model().index(i, 0) for i in select_rows ]
         mode = QItemSelectionModel.Select | QItemSelectionModel.Rows
-        for index in indexes:
+        for index in indices:
             self.tableView.selectionModel().select(index, mode)
 
         # self.setSelectionMode(QAbstractItemView.MultiSelection)
@@ -200,7 +201,7 @@ class CardDetectionWidget(MyQWidget):
         #     self.tableView.selectRow(i)
         # self.setSelectionMode(QAbstractItemView.SingleSelection)
         
-        self.tableView.scrollTo(self.tableView.model().index(min(select_rows), 0))
+        self.tableView.scrollTo(self.tableView.model().index( min(select_rows), 1) )
 
 
     def onHoverIndexChanged(self, index:QModelIndex):
@@ -289,7 +290,7 @@ class DetectionHelper(QObject):
         self.frame_times = []
         self.fps = 30
         self.cards_buffer = pd.DataFrame(columns=['name','frames_on_screen']) # columns=['frames_on_screen'] + ['name', 'set_id', 'card_id', 'cnt', 'img_warp', 'hash_diff', 'phash']
-        self.phash_df = pHash.get_pHash_df(update=False)
+        self.phash_df = pHash.get_pHash_df(update=False).copy()
 
     def update_frame_times(self, N=30):
         current_call_time = timeit.default_timer()
@@ -318,6 +319,7 @@ class DetectionHelper(QObject):
         
         try:
             plus = pd.concat([plus,det_cards])
+            # self.update_card_price_in_phashdf(plus)
             if not self.cards_buffer.empty:
                 if not det_cards.empty:
                     minus = self.cards_buffer[ ~ self.cards_buffer['card_id'].isin(det_cards['card_id']) ].copy()
