@@ -159,8 +159,12 @@ class PandasModel(QAbstractTableModel):
                     return float(cell_value)
                 return str(cell_value)
             elif role == Qt.ToolTipRole and self.enable_tooltip:
+                txt = f'{row_data["name"]} [{row_data["set_id"].upper()}]'
+                if row_data['foil']:
+                    txt += ' [F]'
                 if not pd.isna(row_data['price']) and row_data['price'] >= 0:
-                    return f'{row_data["name"]} {row_data["price"]:.2f}$'
+                    txt += f' - {row_data["price"]:.2f}$'
+                return txt
         return QVariant()
 
     def headerData(self, col, orientation, role):

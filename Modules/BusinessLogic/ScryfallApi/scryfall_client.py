@@ -13,6 +13,10 @@ from tqdm import tqdm
 from config import Config
 _base_url = 'https://api.scryfall.com'
 
+class Devnull():
+    def write(self, *_):
+        pass
+
 def use_api(path:str, show_pbar=True, **kwargs):
     '''
     Freely use scryfall's api at https://api.scryfall.com
@@ -93,7 +97,9 @@ def use_api(path:str, show_pbar=True, **kwargs):
     res = None
 
     # get cards dataset as json from query
-    with tqdm(total=None, unit='card', ascii=False, file=sys.stdout if show_pbar else None, unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
+    f_out = sys.stdout if show_pbar else Devnull()
+    # f_out = sys.stdout if show_pbar else open(os.devnull, 'w')
+    with tqdm(total=None, unit='card', ascii=False, file=f_out, unit_scale=True, desc="Requesting", bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as progress_bar:
         while has_more:
             response = requests.get(url)
             response.raise_for_status() # will raise for anything other than 1xx or 2xx
@@ -216,6 +222,19 @@ def get_card_from_id(id):
     
     card = response.json()
     return card
+
+def get_card_sets(show_pbar=False, **kwargs):
+    '''
+    get all sets in which a card appears
+    '''
+    # `https://api.scryfall.com/cards/search?order=released&unique=prints&q=oracleid%3Aaa7714b0-2bfb-458a-8ebf-37ec2c53383e`,
+    # `https://api.scryfall.com/cards/search?order=released&unique=prints&q=!"fireball"`,
+    if 'oracle_id' in kwargs:
+        res = search(unique='prints', order='released', q={'oracleid': kwargs['oracle_id']}, show_pbar=show_pbar)
+    elif 'name' in kwargs:
+        res = search(unique='prints', order='released', q=f'!"{kwargs["name"]}"', show_pbar=show_pbar)
+    return res
+
 
 #########################################################################################
 #########################################################################################

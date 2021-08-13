@@ -39,8 +39,12 @@ class MainAppWidget(MyStackedQWidget):
         fileMenu.addAction('Main Menu', lambda: self.showPage('mainMenu'))
         fileMenu.addAction('Card Detection', lambda: self.showPage('cardDetection'))
         fileMenu.addAction('pHash DataFrame', lambda: self.showPage('pHash'))
+        
         fileMenu.addSeparator()
+        
         fileMenu.addAction('Logout', self._logout)
+        
+        fileMenu.addSeparator()
 
         exitAction = QAction('Exit', self)
         exitAction.setShortcut('Ctrl+W')

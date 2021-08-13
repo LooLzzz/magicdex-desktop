@@ -9,6 +9,7 @@ from ..PandasModel import PandasModel
 
 class MyQTableView(QTableView):
     hoverIndexChanged = pyqtSignal(QModelIndex)
+    currentChangedSignal = pyqtSignal(QModelIndex, QModelIndex)
     # customMenuRequested = pyqtSignal(QPoint)
     
     def __init__(self, parent=None, model:PandasModel=None, columns=None, alignment=None, contextMenuEnabled=True):
@@ -19,9 +20,11 @@ class MyQTableView(QTableView):
         # self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         # self.setShowGrid(True)
         self.setShowGrid(False)
+        self.selectionModel()
         self.setSelectionBehavior(QTableView.SelectRows)
         self.setAlternatingRowColors(True)
         self.setMouseTracking(True)
+        self.setVerticalScrollMode(QAbstractItemView.ScrollPerItem)
         
         self.contextMenuEnabled = contextMenuEnabled
         self.contextMenuCustomActions = [] # should be a tuple-like list [(txt,action),(...)]
@@ -46,6 +49,7 @@ class MyQTableView(QTableView):
         if self.alignment is not None:
             self.proxyModel = self.AlignmentProxyModel(sourceModel=model, alignment=self.alignment)
             super().setModel(self.proxyModel)
+            # super().selectionModel().setModel(self.proxyModel)
         else:
             super().setModel(model)
 
@@ -60,41 +64,74 @@ class MyQTableView(QTableView):
         #     self.originalItemDelegates = [ self.itemDelegateForColumn(col) for col in range(model.columnCount()) ]
         # self.setColumns(self.columns)
 
+    def List2QMenu(self, actions, title=None, parent=None):
+        if title:
+            menu = QMenu(title, parent)
+        else:
+            menu = QMenu(parent)
+
+        for action in actions:
+            if not action or action == '': # is None or emptyString or emptyIterable
+                menu.addSeparator()
+
+            elif isinstance(action, QAction): # simple action
+                action.setParent(menu)
+                menu.addAction(action)
+
+            elif isinstance(action, str): # simple action
+                menu.addAction(action)
+
+            elif isinstance(action, (tuple,list)): # simple action or submenu
+                if isinstance(action[1], (tuple,list)): # submenu
+                    subMenu = self.List2QMenu(actions=action[1], title=action[0], parent=menu)
+                    menu.addMenu(subMenu)
+                else: # simple action
+                    menu.addAction(*action)
+
+            elif isinstance(action, QMenu): # submenu
+                action.setParent(menu)
+                menu.addMenu(action)
+
+        return menu
+
     def contextMenuEvent(self, event):
-        if self.contextMenuEnabled:
-            # indexes = np.empty((0,2))
-            if self.selectionModel().selection().indexes():
-                indexes = np.array(
-                    [ (i.row(),i.column()) for i in self.selectionModel().selection().indexes() ]
-                )
+        if not self.contextMenuEnabled:
+            return
+        
+        actions = self.contextMenuCustomActions.copy()
+
+        # indexes = np.empty((0,2))
+        if self.selectionModel().selection().indexes():
+            indexes = np.array(
+                [ (i.row(),i.column()) for i in self.selectionModel().selection().indexes() ]
+            )
+        
+            rows = np.unique( indexes[:,0] )
+            cols = indexes[:,1]
             
-                rows = indexes[:,0]
-                cols = indexes[:,1]
+            for i,action in enumerate(actions):
+                if isinstance(action, (list,tuple)) and action[0] == 'Change Set':
+                    if len(rows) > 1 or len(action[1]) == 0:
+                        actions[i] = QMenu('Change Set')
+                        actions[i].setEnabled(False)
 
-                self.menu = QMenu(self)
-
-                actions = self.contextMenuCustomActions + [
-                    ('Duplicate Selection', lambda: self.sourceModel.duplicateRows(np.unique(rows))),
-                    self.deleteAction,
-                ]
-
-                for item in actions:
-                    if not item or item == '': # is None or emptyString or emptyIterable
-                        self.menu.addSeparator()
-                    elif isinstance(item, QAction):
-                        self.menu.addAction(item)
-                    elif isinstance(item, (tuple,list)):
-                        self.menu.addAction(*item)
-                    elif isinstance(item, (QMenu,str)):
-                        self.menu.addMenu(item)
-                
-                self.menu.popup(QCursor.pos())
-                event.accept()
+            actions += [
+                ('Duplicate Selection', lambda: self.sourceModel.duplicateRows(rows)),
+                self.deleteAction,
+            ]
+            
+            self.menu = self.List2QMenu(actions)
+            self.menu.popup(QCursor.pos())
+            event.accept()
 
     def mouseMoveEvent(self, event):
         index = self.indexAt(event.pos())
         self.hoverIndexChanged.emit(index)
         # event.accept()
+
+    def currentChanged(self, current:QModelIndex, previous:QModelIndex):
+        if current.row() != previous.row(): #or current.column() != previous.column():
+            self.currentChangedSignal.emit(current, previous)
 
     def setColumns(self, columns):
         model = self.sourceModel

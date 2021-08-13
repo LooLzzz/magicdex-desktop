@@ -21,10 +21,10 @@ def find_rects_in_image(img, thresh_c=5, kernel_size=(3, 3), size_thresh=10000):
     """
     # Typical pre-processing - grayscale, blurring, thresholding
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
+
     # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     # img_clahe = clahe.apply(img_gray)
-    
+
     img_blur = cv2.medianBlur(img_gray, 5)
     img_thresh = cv2.adaptiveThreshold(img_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 5, thresh_c)
 
@@ -32,6 +32,20 @@ def find_rects_in_image(img, thresh_c=5, kernel_size=(3, 3), size_thresh=10000):
     kernel = np.ones(kernel_size, np.uint8)
     img_dilate = cv2.dilate(img_thresh, kernel, iterations=1)
     img_erode = cv2.erode(img_dilate, kernel, iterations=1)
+
+    # from matplotlib import pyplot as plt
+    # cv2.imshow('original', img) #DEBUG
+    # key = cv2.waitKey(1)
+    # cv2.imshow('gray', img_gray) #DEBUG
+    # key = cv2.waitKey(1)
+    # cv2.imshow('blur', img_blur) #DEBUG
+    # key = cv2.waitKey(1)
+    # cv2.imshow('thresh', img_thresh) #DEBUG
+    # key = cv2.waitKey(1)
+    # cv2.imshow('dilate', img_dilate) #DEBUG
+    # key = cv2.waitKey(1)
+    # cv2.imshow('erode', img_erode) #DEBUG
+    # key = cv2.waitKey(1)
 
     # Find the contour
     cnts, hier = cv2.findContours(img_erode, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -153,7 +167,9 @@ def detect_video(capture, display=False, debug=False, filtering=False, rotation_
             #     pHash.img_to_phash(img_warp, crop_scale=0.95),
             #     pHash.img_to_phash(cv2.rotate(img_warp, cv2.ROTATE_180), crop_scale=0.95),
             # ]
-            phash_value = pHash.img_to_phash(img_warp, crop_scale=0.95)
+            # phash_value = pHash.img_to_phash(img_warp, crop_scale=0.95)
+            phash_value = pHash.img_to_phash(img_warp, crop_scale=0.98)
+            # phash_value = pHash.img_to_phash(img_warp, crop_scale=1)
             min_diff = threshold+1
 
             if len(prev_det_cards) > 0:
@@ -172,7 +188,7 @@ def detect_video(capture, display=False, debug=False, filtering=False, rotation_
                 min_card = prev_det_cards.iloc[min_card_index]
             else:
                 if filtering:
-                    clr_classes = utils.get_color_class(img_warp, eps=0.2, normalize_hsv=True)
+                    clr_classes = utils.get_color_class(img_warp, eps=0.2)
                     df_filtered = df[
                         df['b_classes'].isin(clr_classes[0]) \
                         & df['g_classes'].isin(clr_classes[1]) \
@@ -190,7 +206,7 @@ def detect_video(capture, display=False, debug=False, filtering=False, rotation_
                 )
                 min_card_index = df_filtered['hash_diff'].argmin()
                 min_card = df_filtered.iloc[min_card_index]
-                min_diff = df_filtered.loc[min_card_index, 'hash_diff']
+                min_diff = df_filtered.iloc[min_card_index]['hash_diff']
 
             if min_diff < threshold:
                 det_cards += [{

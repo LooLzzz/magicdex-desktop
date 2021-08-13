@@ -84,6 +84,11 @@ class OutLog(QObject):
     write_signal = pyqtSignal(str, str)
     tqdm_signal = pyqtSignal(str, str)
 
+    skip = False
+    skip_kwrds = [
+        'end of video',
+    ]
+
     def __init__(self, edit, out, color='black'):
         QObject.__init__(self)
         self.edit = edit
@@ -98,6 +103,11 @@ class OutLog(QObject):
             if self.out:
                 self.out.write(m)
 
+            for kwrd in self.skip_kwrds:
+                if kwrd in m.lower():
+                    self.skip = True
+                    return
+            
             if '\r' in m:
                 m = m.replace('\r', '')
                 self.tqdm_signal.emit(m, self.color)

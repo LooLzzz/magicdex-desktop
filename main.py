@@ -31,3 +31,9 @@ if __name__ == '__main__':
     # ex.show()
     # loop.run_forever()
     
+    
+    # import cv2
+    # from Modules.BusinessLogic.card_detection import detect_video
+    # capture = cv2.VideoCapture(0)
+    # detect_video(capture, display=True, debug=True, filtering=False)
+    # capture.release()

@@ -6,6 +6,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 from config import Config
+from ....BusinessLogic.ScryfallApi import scryfall_client as scryfall
 from ....BusinessLogic.ScryfallApi import fetch_data as fetch
 from ....BusinessLogic import card_detection as CardDetection, utils
 from ....BusinessLogic.p_hash import pHash
@@ -25,6 +26,9 @@ class CardDetectionWidget(MyQWidget):
         self.image_worker = None
         self.detectionHelper = DetectionHelper(parent=self)
         self.detectionHelper.results.connect(self.addCardsToTableView)
+        self.cardSets = {}  # dict of all cards in the tableview, containing a dict of all sets in which each of them appear
+                            # the key is the card name, the value is a df of that card in each set it appears
+                            # { 'fireball': fireball_df, 'shock': shock_df, ... }
 
         vbox_main = QVBoxLayout()
         vbox_lower = QVBoxLayout()
@@ -59,16 +63,19 @@ class CardDetectionWidget(MyQWidget):
         _cols = ['collector_number','name','set_name','amount','foil','price']
         self.model = PandasModel(df=pd.DataFrame(columns=_cols), enable_tooltip=True)
         self.tableView = MyQTableView(parent=self, model=self.model, columns=_cols, alignment=Qt.AlignCenter)
+        self.tableView.selectionModel().setModel(self.model)
         self.tableView.setAlternatingRowColors(False)
         self.tableView.setSortingEnabled(False)
         self.tableView.hoverIndexChanged.connect(self.onHoverIndexChanged)
+        self.tableView.currentChangedSignal.connect(self.onCurrentChanged)
+        # self.tableView.selectionModel().currentChanged.connect(self.onCurrentChanged)
         self.tableView.setFixedHeight(235)
 
         self.tableView.contextMenuCustomActions = [
-            ('Change Set', lambda: print('Change Set')),
+            [ 'Change Set', [] ],
             None, # Seperator
         ]
-        
+
         self.tableView.setItemDelegateForColumn(self.model.columnNamed('foil'), self.tableView.CheckBoxDelegate())
         # self.tableView.setItemDelegateForColumn(self.model.columnNamed('amount'), self.tableView.ValidatedItemDelegate())
         
@@ -105,6 +112,29 @@ class CardDetectionWidget(MyQWidget):
 
     def onHide(self):
         self.stopCamera()
+
+    def updateCardSets(self, new_cards):       
+        '''asynchronically update `self.cardSets` to contain all versions of the current cards in the tableview'''
+        def _task():
+            res = {}
+            for card in new_cards:
+                try:
+                    card_res = scryfall.get_card_sets(name=card)
+                    card_res['amount'] = 1
+                    card_res['price'] = None
+                    res[card] = card_res
+                except:
+                    res[card] = None
+            return res
+        
+        def _results(res):
+            self.cardSets.update(res)
+
+        # _results(_task())
+        worker = QWorkerThread(self, _task)
+        worker.results.connect(_results)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
 
     def setCardImageLabel(self, card=None):
         def _task():
@@ -172,11 +202,12 @@ class CardDetectionWidget(MyQWidget):
         old_cards = cards[ cards['card_id'].isin(df['card_id']) ]
 
         if not new_cards.empty:
-            # cards THAT ARE NOT present in the tableview
+            # cards THAT ARE NOT present in the tableview           
             new_cards['amount'] = 1
             new_cards['foil'] = False
             new_cards['price'] = None
 
+            self.updateCardSets(new_cards['name'])
             self.model.insertRow(-1, new_cards)
             select_rows = [self.model.rowCount()-1]
             df = self.model.dataframe
@@ -191,27 +222,76 @@ class CardDetectionWidget(MyQWidget):
         # self.tableView.clearSelection()
         self.tableView.selectionModel().clearSelection()
 
-        indices = [ self.tableView.model().index(i, 0) for i in select_rows ]
+        indexes = [ self.tableView.model().index(i, 0) for i in select_rows ]
         mode = QItemSelectionModel.Select | QItemSelectionModel.Rows
-        for index in indices:
+        for index in indexes:
             self.tableView.selectionModel().select(index, mode)
 
         # self.setSelectionMode(QAbstractItemView.MultiSelection)
         # for i in select_rows:
         #     self.tableView.selectRow(i)
         # self.setSelectionMode(QAbstractItemView.SingleSelection)
-        
-        self.tableView.scrollTo(self.tableView.model().index( min(select_rows), 1) )
 
+        self.setCardImageLabel(cards.iloc[-1])
+        idx = self.tableView.model().index( min(select_rows), 0)
+        # for some reason you need to call `scrollTo()` twice for it to work 🤷‍♂️
+        self.tableView.scrollTo(idx)
+        self.tableView.scrollTo(idx)
+
+    def onCurrentChanged(self, current:QModelIndex, previous:QModelIndex):
+        # the context needs to updated for each different card when right clicking on a list item
+        if current.isValid():
+            row = current.row()
+            # col = current.column()
+
+            card = self.model.dataframe.iloc[row]
+            card_name = card['name']
+
+            actions = []
+            if card_name in self.cardSets:
+                cards_df = self.cardSets[card_name]
+                if cards_df is not None:
+                    # card_sets = card_sets['set_name'].values
+                    # TODO: create a QAction (or a lambda) for each set to update `tableView.dataframe`
+
+                    for i,card in cards_df.iterrows():
+                        actions += [ (
+                            card['set_name'],
+                            lambda row=row, card=card: self.replaceRow(row=row, card=card)
+                        ) ]
+                    
+            # update `contextMenuActions['Change Set'][actions]`
+            self.tableView.contextMenuCustomActions[0][1] = actions
+            # print(f'updated context menu for {{row:{row}, name:"{card_name}"}}') # DEBUG
+
+    def replaceRow(self, row, card):
+        _cols = [
+            ['collector_number', 'name', 'set_name', 'amount', 'foil', 'price', 'card_id', 'set_id', 'released_at', 'image_url'],
+            ['phash', 'b_classes', 'g_classes', 'r_classes']
+        ]
+        df = self.model.dataframe
+        card['image_url'] = card['image_uris']['border_crop']
+        card['amount'] = df.loc[row, 'amount']
+        card['foil'] = df.loc[row, 'foil']
+        
+        card = card[_cols[0]]
+        for col in _cols[1]:
+            card[col] = None
+        
+        df.iloc[row] = card
+        self.model.setDataFrame(df)
+        self.setCardImageLabel(card)
 
     def onHoverIndexChanged(self, index:QModelIndex):
+        self.currentHoveringIndex = index
+
         if index.isValid():
             df = self.model.dataframe
             row = index.row()
             card = df.iloc[row]
             self.setCardImageLabel(card)
         else:
-            self.setCardImageLabel()
+            self.setCardImageLabel(None)
 
     def openCamera(self):
         if self.isRunning:
