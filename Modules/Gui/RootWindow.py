@@ -2,7 +2,7 @@ import sys
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from ..Api.auth import AuthApi
+from ..BusinessLogic import MagicdexApi
 from .MainApp.ConsoleWindow import ConsoleWindow
 from .MainApp.MainAppWidget import MainAppWidget
 
@@ -24,7 +24,7 @@ class RootWindow(QMainWindow):
         mainAppWidget = MainAppWidget(self, self)
         self.setCentralWidget(mainAppWidget)
         
-        username = AuthApi.CheckJWT()
+        username = MagicdexApi.check_jwt()        
         if username:
             mainAppWidget.showPage('mainMenu')
             self.statusBar().showMessage(f'Welcome back {username}', 5000)

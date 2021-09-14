@@ -3,8 +3,8 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
+from ...BusinessLogic import MagicdexApi
 from ...BusinessLogic.p_hash import pHash
-from ...Api.auth import AuthApi
 from ..BaseWidgets.MyStackedQWidget import MyStackedQWidget
 from ..BaseWidgets.MyQWidget import MyQWidget
 from .Pages.LoginWidget import LoginWidget
@@ -63,5 +63,5 @@ class MainAppWidget(MyStackedQWidget):
         # pHash.get_pHash_df(update=True)
 
     def _logout(self):
-        AuthApi.DeleteToken()
+        MagicdexApi.delete_token()
         self.showPage('login')

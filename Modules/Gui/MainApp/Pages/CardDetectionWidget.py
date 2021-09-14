@@ -252,7 +252,6 @@ class CardDetectionWidget(MyQWidget):
                 cards_df = self.cardSets[card_name]
                 if cards_df is not None:
                     # card_sets = card_sets['set_name'].values
-                    # TODO: create a QAction (or a lambda) for each set to update `tableView.dataframe`
 
                     for i,card in cards_df.iterrows():
                         actions += [ (

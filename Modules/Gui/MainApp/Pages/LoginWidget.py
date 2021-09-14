@@ -1,12 +1,11 @@
 import os #, bcrypt
-# from pymongo import MongoClient
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 from ...QWorkerThread import QWorkerThread
 from ...BaseWidgets.MyQWidget import MyQWidget
-from ....Api.auth import AuthApi
+from ....BusinessLogic import MagicdexApi
 
 class LoginWidget(MyQWidget):
     def __init__(self, parent, root_window:QMainWindow):
@@ -104,7 +103,7 @@ class LoginWidget(MyQWidget):
             self.btn_login.setEnabled(False)
             self.root_window.statusBar().showMessage('Logging in..', -1)
             
-            self.worker = QWorkerThread(self, AuthApi.Login, self.username_input.text(), self.password_input.text(), self.checkbox_remember_me.isChecked())
+            self.worker = QWorkerThread(self, MagicdexApi.login, self.username_input.text(), self.password_input.text(), self.checkbox_remember_me.isChecked())
             self.worker.results.connect(self.getWorkerResults)
             self.worker.start()
             # _login_task(self.username_input.text(), self.password_input.text())
