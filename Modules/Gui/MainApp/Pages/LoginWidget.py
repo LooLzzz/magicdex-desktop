@@ -41,12 +41,16 @@ class LoginWidget(MyQWidget):
         self.btn_login.clicked.connect(self.onClickLogin)
         layout.addWidget(self.btn_login)
 
+    def onHide(self):
+        self.root_window.menuBar().setVisible(True)
+        self.root_window.setMaximumSize(QSize(0xFFFFFF, 0xFFFFFF))
+
     def onShow(self):
         # self.root_window.setWindowFlags(Qt.Window | Qt.MSWindowsFixedSizeDialogHint)
         self.root_window.setWindowTitle('Login')
-        self.root_window.resize(280, 115)
-        # self.root_window.setFixedSize(280, 160)
-        # self.root_window.setFixedSize(self.root_window.minimumSizeHint())
+        self.root_window.resize(280, 140)
+        self.root_window.setMinimumSize(QSize(280, 140))
+        self.root_window.setMaximumSize(QSize(280, 140))
         
         self.root_window.menuBar().setVisible(False)
 
@@ -60,9 +64,6 @@ class LoginWidget(MyQWidget):
         self.password_input.setEnabled(True)
         self.checkbox_remember_me.setEnabled(True)
         self.btn_login.setEnabled(True)
-
-    def onHide(self):
-        self.root_window.menuBar().setVisible(True)
 
     def validateLoginInfo(self):
         '''

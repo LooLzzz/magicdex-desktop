@@ -15,5 +15,6 @@ class Config:
     card_images_path = os.path.join(cards_path, 'images')
     
     phash_dir_path = os.path.join(cards_path, 'pHash')
-    phash_default_dataframe = os.path.join(phash_dir_path, 'border_crop.pickle')
+    phash_default_dataframe = os.path.join(phash_dir_path, 'image_data.pickle')
+    # phash_default_dataframe = os.path.join(phash_dir_path, 'border_crop.pickle')
     phash_all_dataframes = os.listdir(phash_dir_path)

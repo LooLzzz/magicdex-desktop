@@ -3,6 +3,8 @@ import sys #, cgitb
 # from qasync import QEventLoop
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import QSize
 
 from Modules import RootWindow
 
@@ -17,6 +19,8 @@ if __name__ == '__main__':
 
     ## sequential ##
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon('data/logo/icon.ico'))
+    
     ex = RootWindow()
     ex.show()
     app.exec_()

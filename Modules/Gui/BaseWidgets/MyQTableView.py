@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from typing import Union
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -12,7 +13,7 @@ class MyQTableView(QTableView):
     currentChangedSignal = pyqtSignal(QModelIndex, QModelIndex)
     # customMenuRequested = pyqtSignal(QPoint)
     
-    def __init__(self, parent=None, model:PandasModel=None, columns=None, alignment=None, contextMenuEnabled=True):
+    def __init__(self, parent=None, model:PandasModel=None, columns=None, alignment=None, contextMenuEnabled=True, persistentEditorColumns=[]):
         super().__init__(parent)
 
         self.setSortingEnabled(True)
@@ -25,6 +26,7 @@ class MyQTableView(QTableView):
         self.setAlternatingRowColors(True)
         self.setMouseTracking(True)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerItem)
+        self.verticalHeader().setVisible(False)
         
         self.contextMenuEnabled = contextMenuEnabled
         self.contextMenuCustomActions = [] # should be a tuple-like list [(txt,action),(...)]
@@ -32,6 +34,7 @@ class MyQTableView(QTableView):
         # self.originalItemDelegates = []
         self.columns = columns
         self.modelLayoutConnection = None
+        self.persistentEditorColumns = persistentEditorColumns
 
         self.deleteAction = QAction('Delete Selection', self)
         self.deleteAction.setShortcut('Delete')
@@ -63,6 +66,11 @@ class MyQTableView(QTableView):
         # if self.originalItemDelegates: # if len(originalItemDelegates) == 0:
         #     self.originalItemDelegates = [ self.itemDelegateForColumn(col) for col in range(model.columnCount()) ]
         # self.setColumns(self.columns)
+        
+        if self.persistentEditorColumns:
+            for row in range(len(self.sourceModel.dataframe)):
+                for col_name in self.persistentEditorColumns:
+                    self.openPersistentEditor(self.proxyModel.index(row, self.sourceModel.columnNamed(col_name)))
 
     def List2QMenu(self, actions, title=None, parent=None):
         if title:
@@ -176,6 +184,60 @@ class MyQTableView(QTableView):
             return False
 
 
+    class ComboBoxDelegate(QItemDelegate):
+        def __init__(self, parent, choices):
+            super().__init__(parent)
+            self.choices = choices
+            self.model = parent.parent().model
+
+        def createEditor(self, parent, option, index):
+            row, col = index.row(), index.column()
+            self.editor = QComboBox(parent)
+            if isinstance(self.choices, (list,tuple)):
+                self.editor.addItems(self.choices)
+            elif isinstance(self.choices, dict):
+                card_name = self.model.dataframe.loc[row, 'name']
+                choices = [ f'{v["set_name"]} - {v["collector_number"]}' for i,v in self.choices[card_name].iterrows() ]
+                self.editor.addItems(choices)
+            return self.editor
+
+        def paint(self, painter, option, index):
+            value = index.data()
+            style = QApplication.style()
+            opt = QStyleOptionComboBox()
+            opt.text = str(value)
+            opt.rect = option.rect
+            style.drawComplexControl(QStyle.CC_ComboBox, opt, painter)
+            QItemDelegate.paint(self, painter, option, index)
+
+        def setEditorData(self, editor, index):
+            row, col = index.row(), index.column()
+            value = index.data() #.split('-')[0].strip()
+            
+            if isinstance(self.choices, (list,tuple)):
+                num = self.choices.index(value)
+            elif isinstance(self.choices, dict):
+                card_name = self.model.dataframe.loc[row, 'name']
+                num = self.choices[card_name]['set_name'].tolist().index(value)
+            editor.setCurrentIndex(num)
+
+        def setModelData(self, editor, model, index):
+            row, col = index.row(), index.column()
+            value = editor.currentText().split('-')[0].strip()
+
+            if isinstance(self.choices, dict):
+                card_name = self.model.dataframe.loc[row, 'name']
+                card_choices = self.choices[card_name]
+                card_choices = card_choices[ card_choices['set_name'] == value ]
+                self.model.dataframe.loc[row, 'card_id'] = card_choices['card_id'].values[0]
+                self.model.dataframe.loc[row, 'set_id']  = card_choices['set_id'].values[0]
+                model.setData(model.index(row, self.model.columnNamed('price')), None, Qt.EditRole) # for price
+                model.setData(model.index(row, self.model.columnNamed('set_id')), None, Qt.EditRole) # for set_id
+            model.setData(index, value, Qt.EditRole) # for actual data changed
+
+        def updateEditorGeometry(self, editor, option, index):
+            editor.setGeometry(option.rect)
+
     class AlignmentProxyModel(QIdentityProxyModel):
         def __init__(self, parent=None, sourceModel=None, alignment=Qt.AlignCenter):
             super().__init__(parent)
@@ -188,3 +250,12 @@ class MyQTableView(QTableView):
             if role == Qt.TextAlignmentRole:
                 return self.alignment
             return super().data(index, role)
+
+        def insertRow(self, row:int, data:Union[dict,list,pd.Series,pd.DataFrame]):
+            return self.sourceModel().insertRow(row, data)
+        
+        def removeRow(self, rows:Union[int,list,tuple]):
+            return self.sourceModel().removeRow(rows)
+
+        # def index(self, row:int, column:int, parent:QModelIndex=...):
+        #     return self.sourceModel().index(row, column, parent)

@@ -198,8 +198,9 @@ def get_bulk_data(bulk_type='default_cards', to_file=False, subdir=None, filenam
         .sort_index(axis=1)
         # .set_index('card_id', drop=True)
     
-    # keep only paper magic cards
-    res_df = res_df[ res_df['games'].apply(lambda x: 'paper' in x) ]
+    # keep only non-digital magic cards
+    # res_df = res_df[ res_df['games'].apply(lambda x: 'paper' in x) ]
+    res_df = res_df[ res_df['digital'] == False & res_df['image_status'].isin(['lowres', 'highres_scan']) ]
 
     if to_file:
         to_json(res_df, subdir, filename=filename, *args, **kwargs)

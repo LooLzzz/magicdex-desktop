@@ -28,14 +28,17 @@ class pHashWidget(MyQWidget):
         self.text_box.textChanged.connect(self.filterTextChanged)
         hbox.addWidget(self.text_box)#, alignment=Qt.AlignLeft)
 
+        hbox.addSpacerItem(QSpacerItem(1, 1, QSizePolicy.Expanding, QSizePolicy.Minimum))
+
+        self.btn_update = QPushButton('Update pHash')
+        self.btn_update.clicked.connect(self.onUpdateClicked)
+        hbox.addWidget(self.btn_update, alignment=Qt.AlignRight)
+        
         self.lbl_rowCount = QLabel('0 Entries')
         hbox.addWidget(self.lbl_rowCount, alignment=Qt.AlignRight)
 
-        self.model = PandasModel(parent=self, df=None)
+        self.model = PandasModel(parent=self, df=None, cellValueTooltipEnabled=False)
         self.tableView = MyQTableView(parent=self, model=self.model, contextMenuEnabled=False)
-        # self.tableView = QTableView(parent=self)
-        # self.tableView.setModel(self.model)
-        # self.tableView.hoverIndexChanged.connect(self.onHoverIndexChanged)
         
         layout.addWidget(self.tableView)
 
@@ -43,32 +46,33 @@ class pHashWidget(MyQWidget):
         # txt = self.text_box.toPlainText()
         self.model.setFilter(txt, columns=['name', 'set', 'collector_number'])
         self.lbl_rowCount.setText(f'{self.model.rowCount()} Entries')
+    
+    def onUpdateClicked(self, checked:bool):
+        worker = pHash.get_pHash_df_qtasync(parent=self, callback=self.getPhashWorkerResults, update=True)
+        worker.started.connect(lambda:  ( self.btn_update.setDisabled(True) , self.btn_update.setText('Updating...')  ))
+        worker.finished.connect(lambda: ( self.btn_update.setDisabled(False), self.btn_update.setText('Update pHash') ))
+        worker.start()
 
-    # def load_phash(self, update_flag):
-    #     df = _task(update_flag=False)
-    #     _getWorkerResults(df)
-    #     self.worker = QWorkerThread(self, _task, update_flag)
-    #     self.worker.results.connect(_getWorkerResults)
-    #     self.worker.start()
-        
+    def onHide(self):
+        self.root_window.setMinimumSize(QSize(280, 140))
+
     def onShow(self):
         self.root_window.setWindowTitle('pHash Viewer')
-        # self.root_window.setFixedSize(941, 700)
         self.root_window.resize(1000, 700)
-        
-        def _getWorkerResults(df):
-            df['phash'] = df['phash'].apply(lambda x: x.astype('uint8'))
-            df['released_at'] = df['released_at'].dt.strftime('%Y-%m-%d')
-            df['color_class_(BGR)'] = list(zip(df['b_classes'], df['g_classes'], df['r_classes']))
-            df = df.drop(columns=['b_classes','g_classes','r_classes'])
-            # df['test'] = pd.Series([ f%2==0 for f in range(len(df))])
-            self.model = PandasModel(parent=self, df=df)
-            self.tableView.setModel(self.model)
-            self.lbl_rowCount.setText(f'{self.model.rowCount()} Entries')
-            self.tableView.update()
+        self.root_window.setMinimumSize(QSize(1000, 700))
 
         if self.model.dataframe is None:
-            worker = pHash.get_pHash_df_qtasync(parent=self, callback=_getWorkerResults, update=False)
-            # worker = pHash.get_pHash_df_qtasync(parent=self, callback=_getWorkerResults, update=True)
-            worker.start()
-            # self.load_phash(False)
+            pHash \
+                .get_pHash_df_qtasync(parent=self, callback=self.getPhashWorkerResults, update=False) \
+                .start()
+
+    def getPhashWorkerResults(self, df):
+        df['phash'] = df['phash'].apply(lambda x: x.astype('uint8'))
+        df['released_at'] = df['released_at'].dt.strftime('%Y-%m-%d')
+        df['color_class_(BGR)'] = list(zip(df['b_classes'], df['g_classes'], df['r_classes']))
+        df = df.drop(columns=['b_classes','g_classes','r_classes'])
+        # df['test'] = pd.Series([ f%2==0 for f in range(len(df))])
+        self.model = PandasModel(parent=self, df=df)
+        self.tableView.setModel(self.model)
+        self.lbl_rowCount.setText(f'{self.model.rowCount()} Entries')
+        # self.tableView.model().dataChanged.emit(QModelIndex(), QModelIndex())

@@ -93,15 +93,30 @@ class _pHash(metaclass=utils.Singleton):
                     progress_bar.refresh()
             
             for item in cards:
-                img = fetch.fetch_card_img(item, to_file=save_imgs, verbose=verbose)
-                (b_classes,g_classes,r_classes) = utils.get_color_class(img, num_of_classes=4, eps=0, color_correction=False)
+                try:
+                    if not pd.isna(item['image_uris']):
+                        if 'png' in item['image_uris']:
+                            item['image_url'] = item['image_uris']['png']
+                        elif 'large' in item['image_uris']:
+                            item['image_url'] = item['image_uris']['large']
+                        elif 'normal' in item['image_uris']:
+                            item['image_url'] = item['image_uris']['normal']
+                        else:
+                            raise Exception(f'card has no image url')
+                    else:
+                        raise Exception(f'card has no image url')
 
-                item['phash'] = _pHash.img_to_phash(img)
-                item['b_classes'] = b_classes[0]
-                item['g_classes'] = g_classes[0]
-                item['r_classes'] = r_classes[0]
-                item['image_url'] = item['image_uris']['border_crop']
-                progress_bar.update(n=1)
+                    img = fetch.fetch_card_img(item, to_file=save_imgs, verbose=verbose)
+                    (b_classes,g_classes,r_classes) = utils.get_color_class(img, num_of_classes=4, eps=0, color_correction=False)
+                    item['phash'] = _pHash.img_to_phash(img)
+                    item['b_classes'] = b_classes[0]
+                    item['g_classes'] = g_classes[0]
+                    item['r_classes'] = r_classes[0]
+                except Exception as e:
+                    # print(f'error with: {card["name"]}. {e.args}')
+                    cards = pd.DataFrame(columns=card.keys()) # skip this card
+                    break
+            progress_bar.update(n=len(cards))
             
             # vals = [ c.values for c in cards ]
             # cols = cards[0].index
@@ -125,21 +140,22 @@ class _pHash(metaclass=utils.Singleton):
             for future in task_master.futures:
                 task_result:pd.DataFrame = future.result() # blocking
                 # if not task_result['phash'].all():
-                phash_df = phash_df.append(task_result[cols])
+                if not task_result.empty:
+                    phash_df = phash_df.append(task_result[cols])
                 
-                if concat_flag==False and progress_bar.n==progress_bar.total:
-                    # flip the flag only when the first progress bar is finished
-                    # close the first progress bar and start a new one
-                    concat_flag = True
-                    tot = progress_bar.total
-                    progress_bar.n = tot
-                    progress_bar.refresh()
-                    progress_bar.close()
-                    # print('')
-                    progress_bar = tqdm(total=tot, ascii=False, file=sys.stdout, unit='card', unit_scale=True, desc='Concatenating results', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
-                    progress_bar.update(len(phash_df))
-                elif concat_flag:
-                    progress_bar.update(1)
+                    if concat_flag==False and progress_bar.n==progress_bar.total:
+                        # flip the flag only when the first progress bar is finished
+                        # close the first progress bar and start a new one
+                        concat_flag = True
+                        tot = progress_bar.total
+                        progress_bar.n = tot
+                        progress_bar.refresh()
+                        progress_bar.close()
+                        # print('')
+                        progress_bar = tqdm(total=tot, ascii=False, file=sys.stdout, unit='card', unit_scale=True, desc='Concatenating results', bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
+                        progress_bar.update(len(phash_df))
+                    elif concat_flag:
+                        progress_bar.update(1)
             
             progress_bar.n = progress_bar.total
             progress_bar.refresh()
@@ -190,7 +206,7 @@ class _pHash(metaclass=utils.Singleton):
                 update = (update == 'y') # to boolean
             
             if update:
-                cards_df = Scryfall.search(q={'date':f'>{obj_date}'}) # update pHashes if new cards are available
+                cards_df = Scryfall.search(q={'date':f'>{obj_date}'}, _is='digital') # update pHashes if new cards are available
                 # cards_df = Scryfall.search(q={'date':'>2020-01-01'}) 
                 # cards_df = fetch.load_all('cards')
                     

@@ -10,7 +10,7 @@ dist
 setup.py
 
 *tmp*
-data/**/images/**
+data/**/images*/**
 # data/**/*.jpg
 data/**/dtd/**
 __pycache__

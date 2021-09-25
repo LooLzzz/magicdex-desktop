@@ -39,7 +39,7 @@ class CardDetectionWidget(MyQWidget):
         # start/stop buttons
         btnStart = QPushButton("Open camera")
         btnStart.clicked.connect(self.openCamera)
-        btnStop = QPushButton("Stop camera")
+        btnStop = QPushButton("Close camera")
         btnStop.clicked.connect(self.stopCamera)
         
         hbox_upper.addWidget(btnStart)
@@ -61,7 +61,7 @@ class CardDetectionWidget(MyQWidget):
         vbox_lower.addWidget(self.searchbox, alignment=Qt.AlignBottom)
         
         _cols = ['collector_number','name','set_name','amount','foil','price']
-        self.model = PandasModel(df=pd.DataFrame(columns=_cols), enable_tooltip=True)
+        self.model = PandasModel(df=pd.DataFrame(columns=_cols), priceToolTipEnabled=True)
         self.tableView = MyQTableView(parent=self, model=self.model, columns=_cols, alignment=Qt.AlignCenter)
         self.tableView.selectionModel().setModel(self.model)
         self.tableView.setAlternatingRowColors(False)
@@ -71,6 +71,7 @@ class CardDetectionWidget(MyQWidget):
         # self.tableView.selectionModel().currentChanged.connect(self.onCurrentChanged)
         self.tableView.setFixedHeight(235)
 
+        self.model.setHeaderData(self.model.columnNamed('price'), Qt.Horizontal, "will be updated according to current price", Qt.ToolTipRole)
         self.tableView.contextMenuCustomActions = [
             [ 'Change Set', [] ],
             None, # Seperator
@@ -85,6 +86,10 @@ class CardDetectionWidget(MyQWidget):
         self.card_image_label.setFixedSize(200, 280)
         self.setCardImageLabel()
         hbox_lower.addWidget(self.card_image_label, alignment=Qt.AlignRight|Qt.AlignBottom)
+        
+        btn_staging_area = QPushButton("Goto\nStaging Area")
+        btn_staging_area.clicked.connect(lambda: self.parent().showPage('stagingArea'))
+        hbox_lower.addWidget(btn_staging_area, alignment=Qt.AlignRight)
 
         self.rotate_frame = QFrame(parent=self.video_label)
         self.rotate_frame.setGeometry(595, -5, 50, 50)
@@ -101,7 +106,8 @@ class CardDetectionWidget(MyQWidget):
 
     def onShow(self):
         self.root_window.setWindowTitle('Card Detection')
-        self.root_window.resize(800, 835)
+        self.root_window.resize(875, 835)
+        self.root_window.setMinimumSize(QSize(875, 835))
 
         def _getWorkerResults(dataframe):
             self.dataframe = dataframe
@@ -111,6 +117,7 @@ class CardDetectionWidget(MyQWidget):
         worker.start()
 
     def onHide(self):
+        self.root_window.setMinimumSize(QSize(280, 140))
         self.stopCamera()
 
     def updateCardSets(self, new_cards):       
@@ -255,7 +262,7 @@ class CardDetectionWidget(MyQWidget):
 
                     for i,card in cards_df.iterrows():
                         actions += [ (
-                            card['set_name'],
+                            f'{card["set_name"]} - {card["collector_number"]}',
                             lambda row=row, card=card: self.replaceRow(row=row, card=card)
                         ) ]
                     
@@ -269,7 +276,8 @@ class CardDetectionWidget(MyQWidget):
             ['phash', 'b_classes', 'g_classes', 'r_classes']
         ]
         df = self.model.dataframe
-        card['image_url'] = card['image_uris']['border_crop']
+        # card['image_url'] = card['image_uris']['border_crop']
+        card['image_url'] = card['image_uris']['normal']
         card['amount'] = df.loc[row, 'amount']
         card['foil'] = df.loc[row, 'foil']
         

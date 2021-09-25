@@ -11,8 +11,8 @@ class RootWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(280, 140)
-        self.setMaximumSize(2000, 2000)
+        # self.setMinimumSize(280, 160)
+        # self.setMaximumSize(2000, 2000)
         self.setGeometry(500, 125, 10, 10) # x, y, w, h
 
         self.console_window = ConsoleWindow()

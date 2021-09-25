@@ -41,11 +41,11 @@ def fetch_card_img(card, to_file=False, verbose=True):
     '''
     setid = card['set_id']
     
-    if 'image_uris' in card:
+    if 'image_url' in card:
+        image_url = card['image_url']
+    else:
         # image_url = card['image_uris']['large']
         image_url = card['image_uris']['normal']
-    else:
-        image_url = card['image_url']
     
     if 'collector_number' in card:
         number = card['collector_number']

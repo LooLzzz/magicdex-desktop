@@ -15,12 +15,15 @@ from ..BusinessLogic.ScryfallApi import fetch_data as fetch
 class PandasModel(QAbstractTableModel):
     CompleterRole = Qt.ItemDataRole.UserRole + 1
 
-    def __init__(self, parent=None, df=None, enable_tooltip=False):
+    def __init__(self, parent=None, df=None, priceToolTipEnabled=False, cellValueTooltipEnabled=True, editableColumns=[]):
         super().__init__(parent)
-        self.enable_tooltip = enable_tooltip
+        self.priceTooltipEnabled = priceToolTipEnabled
         self.dataframe = df
         self.currentItems = df
         self.filterKwargs = {}
+        self.editableColumns = editableColumns + ['amount', 'tag', 'foil', 'signed', 'altered', 'misprint', 'condition']
+        self.headerTooltips = {}
+        self.cellValueTooltipEnabled = cellValueTooltipEnabled
 
     def setDataFrame(self, df:pd.DataFrame):
         # df = pd.api.types.infer_dtype
@@ -45,23 +48,27 @@ class PandasModel(QAbstractTableModel):
 
     def setData(self, index, value, role):
         row, col = index.row(), index.column()
-        if index.isValid() and role == Qt.EditRole \
+        if index.isValid() \
                 and row in range(len(self.currentItems))\
                 and col in range(len(self.currentItems.columns)):
-            if self.columnName(col) == 'amount' and value < 1:
-                self.currentItems.iloc[row, col] = 1
-                self.dataChanged.emit(index, index)
-            elif self.columnName(col) == 'foil':
-                self.currentItems.iloc[row, col] = value
-                self.dataChanged.emit(index, index)
-                if 'price' in self.currentItems.columns:
-                    self.currentItems.loc[row, 'price'] = None
-                    price_index = self.index(row, self.columnNamed('price'))
-                    self.dataChanged.emit(price_index, price_index)
-            else:
-                self.currentItems.iloc[row, col] = value
-                self.dataChanged.emit(index, index)
+            colname = self.columnName(col)
+            if role == Qt.EditRole:
+                if colname == 'amount' and value < 1:
+                    self.currentItems.iloc[row, col] = 1
+                elif colname in ['foil', 'set_name']:
+                    self.currentItems.iloc[row, col] = value
+                    if 'price' in self.currentItems.columns:
+                        self.currentItems.loc[row, 'price'] = None
+                        price_index = self.index(row, self.columnNamed('price'))
+                        self.dataChanged.emit(price_index, price_index)
+                elif colname == 'tag':
+                    value = { v.strip() for v in value.split(';') }
+                    value = ';'.join(value)
+                    self.currentItems.iloc[row, col] = value
+                else:
+                    self.currentItems.iloc[row, col] = value
 
+            self.dataChanged.emit(index, index)
             return True
         return False
 
@@ -81,10 +88,12 @@ class PandasModel(QAbstractTableModel):
                 upper = self.dataframe[:row]
                 lower = self.dataframe[row:]
                 df = pd.concat([upper, data, lower]).reset_index(drop=True)
+                # n = len(upper)
                 self.setDataFrame(df)
             else:
                 df = pd.concat([self.dataframe, data]).reset_index(drop=True)
                 self.setDataFrame(df)
+        # self.rowsInserted.emit(self.index(row, 0), n, n+len(data)-1)
 
     def removeRow(self, rows:Union[int,list,tuple]):
         if self.currentItems is None:
@@ -96,6 +105,7 @@ class PandasModel(QAbstractTableModel):
         rows = self.currentItems.iloc[rows]
         df = self.dataframe.drop(index=rows.index).reset_index(drop=True)
         self.setDataFrame(df)
+        # self.rowsRemoved.emit(rows.index, rows.index)
         return rows
 
     def duplicateRows(self, rows):
@@ -112,9 +122,7 @@ class PandasModel(QAbstractTableModel):
 
         if index.isValid():
             row, col = index.row(), index.column()
-            colname = self.columnName(col)
-            if colname == 'amount' \
-                    or colname == 'foil':
+            if self.columnName(col) in self.editableColumns:
                 flags |= Qt.ItemIsEditable
         
         return flags
@@ -151,6 +159,13 @@ class PandasModel(QAbstractTableModel):
                         worker.finished.connect(worker.deleteLater)
                         worker.start()
                     return f'{cell_value*row_data["amount"]:.2f}$' if pd.notna(cell_value) and cell_value > 0 else '-'
+                if col_data.name == 'tag':
+                    if not cell_value:
+                        return '-'
+                    tags = cell_value.split(';')
+                    if len(tags) == 1:
+                        return str(tags[0])
+                    return str(tags).replace("'",'')
                 return str(cell_value)
             elif role == Qt.EditRole:
                 if is_integer_dtype(col_data):
@@ -158,24 +173,46 @@ class PandasModel(QAbstractTableModel):
                 if is_float_dtype(col_data):
                     return float(cell_value)
                 return str(cell_value)
-            elif role == Qt.ToolTipRole and self.enable_tooltip:
-                txt = f'{row_data["name"]} [{row_data["set_id"].upper()}]'
-                if row_data['foil']:
-                    txt += ' [F]'
-                if not pd.isna(row_data['price']) and row_data['price'] >= 0:
-                    txt += f' - {row_data["price"]:.2f}$'
-                return txt
+            elif role == Qt.ToolTipRole:
+                if col_data.name == 'tag':
+                    return "seperated by ';'"
+                if self.priceTooltipEnabled:
+                    txt = f'{row_data["name"]} [{row_data["set_id"].upper()}]'
+                    if row_data['foil']:
+                        txt += ' [F]'
+                    if not pd.isna(row_data['price']) and row_data['price'] >= 0:
+                        txt += f' - {row_data["price"]:.2f}$'
+                    return txt
+                if self.cellValueTooltipEnabled:
+                    return str(cell_value)
         return QVariant()
 
     def headerData(self, col, orientation, role):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            colname = str(self.currentItems.columns[col]) \
-                        .replace('_', ' ') \
-                        .title()
-            if colname == 'Collector Number':
-                return 'Collector No.'
-            return colname
-        return QVariant()
+        if col in range(len(self.currentItems.columns)):
+            colname = str(self.currentItems.columns[col])
+            if orientation == Qt.Horizontal:
+                if role == Qt.DisplayRole:
+                    if colname == 'collector_number':
+                        return 'Collector No.'
+                    return colname.replace('_', ' ').title()
+                if role == Qt.ToolTipRole:
+                    return self.headerTooltips[colname] if colname in self.headerTooltips else QVariant()
+                if role == Qt.FontRole:
+                    if colname in self.headerTooltips and self.headerTooltips[colname]:
+                        font = QFont()
+                        font.setUnderline(True)
+                        return font
+        return super().headerData(col, orientation, role)
+
+    def setHeaderData(self, col, orientation, value, role):
+        colname = str(self.currentItems.columns[col])
+        if orientation == Qt.Horizontal:
+            if role == Qt.ToolTipRole:
+                if colname in self.dataframe.columns:
+                    self.headerTooltips[colname] = value
+                    return True
+                return False
+        return super().setHeaderData(col, orientation, value, role)
 
     def sort(self, column, order):
         if self.currentItems is not None:
